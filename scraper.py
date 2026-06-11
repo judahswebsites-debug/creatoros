@@ -109,34 +109,43 @@ def scrape_profile(username: str, apify_token=None) -> Profile:
     profile_result = None
     reel_items = []
 
-    # Profile scraper
-    try:
-        profile_run = client.actor("apify/instagram-profile-scraper").call(
+    def _dataset_id(run):
+        return run.default_dataset_id if hasattr(run, "default_dataset_id") else run["defaultDatasetId"]
+
+    def _scrape_profile_actor():
+        run = client.actor("apify/instagram-profile-scraper").call(
             run_input={
                 "usernames": [username],
                 "resultsType": "details",
             }
         )
-        dataset_id = profile_run.default_dataset_id if hasattr(profile_run, "default_dataset_id") else profile_run["defaultDatasetId"]
-        for item in client.dataset(dataset_id).iterate_items():
-            profile_result = item
-            break
-    except Exception as e:
-        print(f"Profile scrape error: {e}")
+        for item in client.dataset(_dataset_id(run)).iterate_items():
+            return item
+        return None
 
-    # Reel/post scraper
-    try:
-        reel_run = client.actor("apify/instagram-reel-scraper").call(
+    def _scrape_reel_actor():
+        run = client.actor("apify/instagram-reel-scraper").call(
             run_input={
                 "username": [username],
                 "resultsLimit": 30,
             }
         )
-        reel_dataset_id = reel_run.default_dataset_id if hasattr(reel_run, "default_dataset_id") else reel_run["defaultDatasetId"]
-        for item in client.dataset(reel_dataset_id).iterate_items():
-            reel_items.append(item)
-    except Exception as e:
-        print(f"Reel scrape error: {e}")
+        return list(client.dataset(_dataset_id(run)).iterate_items())
+
+    # Run both Apify actors concurrently — they are independent, and on a
+    # slow free instance running them sequentially blows the worker timeout.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        profile_future = ex.submit(_scrape_profile_actor)
+        reel_future = ex.submit(_scrape_reel_actor)
+        try:
+            profile_result = profile_future.result()
+        except Exception as e:
+            print(f"Profile scrape error: {e}")
+        try:
+            reel_items = reel_future.result()
+        except Exception as e:
+            print(f"Reel scrape error: {e}")
 
     if profile_result:
         profile.username = profile_result.get("username", username)
