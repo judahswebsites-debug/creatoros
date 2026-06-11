@@ -56,15 +56,20 @@
     return '#fbbf24';
   }
 
-  function mount(selector, username) {
+  function mount(selector, username, data) {
     injectStyles();
     var root = document.querySelector(selector);
     if (!root) return;
 
     root.innerHTML = '<div class="bench-skeleton"><div class="bench-skel-line" style="width:40%"></div><div class="bench-skel-line"></div><div class="bench-skel-line" style="width:80%"></div></div>';
 
-    var url = '/api/analytics/benchmarks' + (username ? '?username=' + encodeURIComponent(username) : '');
-    fetch(url)
+    // POST the analysis the client already holds so the result is correct
+    // regardless of which Gunicorn worker serves the request.
+    fetch('/api/analytics/benchmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username || '', analysis: data || null })
+    })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok || !d.metrics) { root.innerHTML = ''; return; }

@@ -87,25 +87,43 @@ def chat():
     return jsonify({"ok": True, "reply": reply})
 
 
-@app.route("/api/analytics/benchmarks")
+def _resolve_analysis():
+    """Prefer the analysis sent by the client (works across Gunicorn workers
+    and instance restarts); fall back to the in-memory server cache."""
+    body = request.get_json(silent=True) or {}
+    username = (request.args.get("username") or body.get("username") or "").lstrip("@").lower().strip()
+    source = body.get("analysis") or _analysis_cache.get(username, {})
+    return source
+
+
+@app.route("/api/analytics/benchmarks", methods=["GET", "POST"])
 def benchmarks():
-    username = request.args.get("username", "").lower()
-    cached = _analysis_cache.get(username, {})
-    er_str = cached.get("analytics", {}).get("avg_engagement_rate", "3.2%")
+    source = _resolve_analysis()
+    analytics = source.get("analytics", {}) if source else {}
+    profile = source.get("profile", {}) if source else {}
+    has_data = bool(analytics)
+
+    er_str = analytics.get("avg_engagement_rate", "3.2%")
     try:
-        er_val = float(er_str.replace("%", ""))
+        er_val = float(str(er_str).replace("%", "").strip())
     except Exception:
         er_val = 3.2
 
-    freq = cached.get("analytics", {}).get("posting_frequency_per_week", "3x / week")
+    freq = analytics.get("posting_frequency_per_week", "3x / week")
     try:
         freq_val = float(str(freq).replace("x / week", "").replace("x/week", "").replace("/ week", "").replace("x", "").strip())
     except Exception:
         freq_val = 3.0
 
-    # Real avg reel views (in thousands) from the scrape; fall back to 24K
-    avg_views_raw = cached.get("profile", {}).get("avg_reel_views", 0)
-    avg_views_k = round(avg_views_raw / 1000) if avg_views_raw else 24
+    # Real avg reel views from the scrape; format large counts as M, else K.
+    avg_views_raw = profile.get("avg_reel_views", 0) or 0
+    if avg_views_raw >= 1_000_000:
+        views_val, views_unit = round(avg_views_raw / 1_000_000, 1), "M"
+    elif avg_views_raw:
+        views_val, views_unit = round(avg_views_raw / 1000), "K"
+    else:
+        views_val, views_unit = 24, "K"
+    views_ahead = avg_views_raw >= 85_000
 
     metrics = [
         {
@@ -124,23 +142,23 @@ def benchmarks():
         },
         {
             "label": "Avg Views / Reel",
-            "user_value": avg_views_k,
+            "user_value": views_val,
             "top_value": 85,
-            "unit": "K",
-            "verdict": "Ahead" if avg_views_k >= 85 else "Close" if avg_views_k >= 40 else "Behind",
+            "unit": views_unit,
+            "verdict": "Ahead" if views_ahead else "Close" if avg_views_raw >= 40_000 else "Behind",
         },
     ]
     return jsonify({
         "ok": True,
+        "has_data": has_data,
         "metrics": metrics,
         "motivational": "You're <strong>in the top 30%</strong> for engagement in your niche. Increase posting frequency to unlock the next growth tier.",
     })
 
 
-@app.route("/api/recommendations")
+@app.route("/api/recommendations", methods=["GET", "POST"])
 def recommendations():
-    username = request.args.get("username", "").lower()
-    cached = _analysis_cache.get(username, {})
+    cached = _resolve_analysis()
     nbp = cached.get("next_best_post", {})
     analytics = cached.get("analytics", {})
     top_tactics = cached.get("top_tactics", [])
