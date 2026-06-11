@@ -114,7 +114,8 @@ def scrape_profile(username: str, apify_token=None) -> Profile:
                 "resultsType": "details",
             }
         )
-        for item in client.dataset(profile_run["defaultDatasetId"]).iterate_items():
+        dataset_id = profile_run.default_dataset_id if hasattr(profile_run, "default_dataset_id") else profile_run["defaultDatasetId"]
+        for item in client.dataset(dataset_id).iterate_items():
             profile_result = item
             break
     except Exception as e:
@@ -128,7 +129,8 @@ def scrape_profile(username: str, apify_token=None) -> Profile:
                 "resultsLimit": 30,
             }
         )
-        for item in client.dataset(reel_run["defaultDatasetId"]).iterate_items():
+        reel_dataset_id = reel_run.default_dataset_id if hasattr(reel_run, "default_dataset_id") else reel_run["defaultDatasetId"]
+        for item in client.dataset(reel_dataset_id).iterate_items():
             reel_items.append(item)
     except Exception as e:
         print(f"Reel scrape error: {e}")
