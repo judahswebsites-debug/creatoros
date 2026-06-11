@@ -56,14 +56,15 @@
     return '#fbbf24';
   }
 
-  function mount(selector) {
+  function mount(selector, username) {
     injectStyles();
     var root = document.querySelector(selector);
     if (!root) return;
 
     root.innerHTML = '<div class="bench-skeleton"><div class="bench-skel-line" style="width:40%"></div><div class="bench-skel-line"></div><div class="bench-skel-line" style="width:80%"></div></div>';
 
-    fetch('/api/analytics/benchmarks')
+    var url = '/api/analytics/benchmarks' + (username ? '?username=' + encodeURIComponent(username) : '');
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok || !d.metrics) { root.innerHTML = ''; return; }

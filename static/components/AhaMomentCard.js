@@ -143,7 +143,8 @@
       return card;
     }
 
-    fetch('/api/recommendations')
+    var recUrl = '/api/recommendations' + (opts.username ? '?username=' + encodeURIComponent(opts.username) : '');
+    fetch(recUrl)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.ok && d.recommendations && d.recommendations.length) {

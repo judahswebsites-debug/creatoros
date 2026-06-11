@@ -55,7 +55,18 @@ def analyze():
         "username": profile.username,
         "full_name": profile.full_name,
         "followers": profile.followers,
+        "following": profile.following,
+        "posts_count": profile.posts_count,
+        "bio": profile.bio,
+        "category": profile.category,
         "profile_pic_url": profile.profile_pic_url,
+        "avg_engagement_rate": profile.avg_engagement_rate,
+        "posting_frequency_per_week": profile.posting_frequency_per_week,
+        "best_posting_days": profile.best_posting_days,
+        "engagement_trend": profile.engagement_trend,
+        "top_format": profile.top_format,
+        "avg_reel_views": profile.meta.get("avg_reel_views", 0),
+        "posts_scraped": profile.meta.get("posts_scraped", 0),
     }
 
     _analysis_cache[username.lower()] = result
@@ -88,9 +99,13 @@ def benchmarks():
 
     freq = cached.get("analytics", {}).get("posting_frequency_per_week", "3x / week")
     try:
-        freq_val = float(str(freq).replace("x / week", "").replace("x/week", "").strip())
+        freq_val = float(str(freq).replace("x / week", "").replace("x/week", "").replace("/ week", "").replace("x", "").strip())
     except Exception:
         freq_val = 3.0
+
+    # Real avg reel views (in thousands) from the scrape; fall back to 24K
+    avg_views_raw = cached.get("profile", {}).get("avg_reel_views", 0)
+    avg_views_k = round(avg_views_raw / 1000) if avg_views_raw else 24
 
     metrics = [
         {
@@ -109,10 +124,10 @@ def benchmarks():
         },
         {
             "label": "Avg Views / Reel",
-            "user_value": 24,
+            "user_value": avg_views_k,
             "top_value": 85,
             "unit": "K",
-            "verdict": "Behind",
+            "verdict": "Ahead" if avg_views_k >= 85 else "Close" if avg_views_k >= 40 else "Behind",
         },
     ]
     return jsonify({
@@ -124,35 +139,66 @@ def benchmarks():
 
 @app.route("/api/recommendations")
 def recommendations():
-    recs = [
-        {
+    username = request.args.get("username", "").lower()
+    cached = _analysis_cache.get(username, {})
+    nbp = cached.get("next_best_post", {})
+    analytics = cached.get("analytics", {})
+    top_tactics = cached.get("top_tactics", [])
+
+    best_day = nbp.get("best_day") or (analytics.get("best_posting_days") or [None])[0]
+    best_time = nbp.get("best_time")
+    top_format = analytics.get("top_format", "Reels")
+
+    recs = []
+
+    # Timing rec — derived from the real analysis best day/time
+    if best_day and best_time:
+        recs.append({
             "type": "timing",
             "type_color": "#34d399",
-            "headline": "Post Tuesday at 7 PM for 40% more reach",
-            "body": "Your audience engagement peaks Tuesday evenings. Shifting just 2 posts per week to this window could significantly boost your reach.",
-            "stat": "40% reach increase",
+            "headline": f"Post {best_day} at {best_time} for peak reach",
+            "body": f"Your audience engagement peaks on {best_day}. Scheduling posts in this window aligns with your account's strongest performance pattern.",
+            "stat": "Peak engagement window",
             "confidence": 4,
-            "next_preview": "Next: Hook optimization tip",
-        },
-        {
+            "next_preview": "Next: Content tactic",
+        })
+
+    # Tactic recs — pulled straight from the AI growth report
+    colors = ["#fbbf24", "#818cf8", "#34d399"]
+    for i, t in enumerate(top_tactics[:2]):
+        recs.append({
+            "type": "content",
+            "type_color": colors[i % len(colors)],
+            "headline": t.get("name", "Growth tactic"),
+            "body": t.get("impact", ""),
+            "stat": t.get("difficulty", "") + (" · " + t.get("time_to_implement", "") if t.get("time_to_implement") else ""),
+            "confidence": 4,
+            "next_preview": "Next: Format strategy",
+        })
+
+    # Format rec — based on the account's actual top format
+    recs.append({
+        "type": "format",
+        "type_color": "#818cf8",
+        "headline": f"Lean into {top_format} — your top-performing format",
+        "body": f"{top_format} drive the most engagement on your account right now. Prioritize this format to maximize organic reach.",
+        "stat": "Top format",
+        "confidence": 4,
+        "next_preview": "Next: Keep posting consistently",
+    })
+
+    # Fallback if no analysis cached yet
+    if not recs or (not best_day and not top_tactics):
+        recs = [{
             "type": "content",
             "type_color": "#fbbf24",
-            "headline": "Add a strong hook in first 3 seconds",
-            "body": "Your top-performing Reels all start with a bold statement. Apply this to every post to increase watch time and algorithm reach.",
-            "stat": "3× watch-through rate",
+            "headline": "Run an analysis to unlock tailored recommendations",
+            "body": "Personalized timing, content, and format tips appear here after your account is analyzed.",
+            "stat": "",
             "confidence": 3,
-            "next_preview": "Next: Hashtag strategy",
-        },
-        {
-            "type": "format",
-            "type_color": "#818cf8",
-            "headline": "Switch to Reels-first strategy",
-            "body": "Reels are getting 4× the organic reach of static posts in your niche right now. Prioritize video content this month.",
-            "stat": "4× organic reach",
-            "confidence": 4,
-            "next_preview": "Next: Collaboration opportunity",
-        },
-    ]
+            "next_preview": "",
+        }]
+
     return jsonify({"ok": True, "recommendations": recs})
 
 

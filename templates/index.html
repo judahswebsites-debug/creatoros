@@ -1416,8 +1416,9 @@ function switchSection(name, clickedEl) {
 
   if (name === 'analytics' && !G.analyticsInited && G.data) {
     G.analyticsInited = true;
-    BenchmarkStrip.mount('#benchmark-strip-mount');
+    BenchmarkStrip.mount('#benchmark-strip-mount', G.username);
     AhaMomentCard.mount('#aha-moment-mount', {
+      username: G.username,
       onCtaClick: function(rec) { alert('Applying: ' + rec.headline); }
     });
     drawChart('analytics-chart', 200);
@@ -1473,9 +1474,9 @@ function buildDashboard(d) {
   document.getElementById('hero-username').textContent = '@' + username;
   document.getElementById('hero-category').textContent = profile.category || 'Creator';
   document.getElementById('hero-bio').textContent = profile.bio || '';
-  document.getElementById('hero-followers').textContent = fmtNum(profile.followers || 0);
-  document.getElementById('hero-following').textContent = fmtNum(profile.following || 0);
-  document.getElementById('hero-posts').textContent = fmtNum(profile.posts_count || 0);
+  document.getElementById('hero-followers').textContent = profile.followers ? fmtNum(profile.followers) : '—';
+  document.getElementById('hero-following').textContent = (profile.following || profile.following === 0) && profile.following > 0 ? fmtNum(profile.following) : '—';
+  document.getElementById('hero-posts').textContent = profile.posts_count > 0 ? fmtNum(profile.posts_count) : '—';
   document.getElementById('hero-engagement').textContent = (d.analytics && d.analytics.avg_engagement_rate) ? d.analytics.avg_engagement_rate : (profile.avg_engagement_rate ? profile.avg_engagement_rate + '%' : '—');
   var trendMap = {growing: '📈 Growing', stable: '➡️ Stable', declining: '📉 Declining'};
   document.getElementById('hero-trend-stat').textContent = trendMap[profile.engagement_trend] || profile.engagement_trend || '—';

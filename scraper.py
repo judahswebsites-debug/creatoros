@@ -83,6 +83,9 @@ def _compute_analytics(profile: Profile) -> None:
     image_count = len(posts) - reel_count
     profile.top_format = "Reels" if reel_count >= image_count else "Images"
 
+    reel_views = [p.views for p in posts if p.type in ("reel", "video") and p.views]
+    profile.meta["avg_reel_views"] = round(sum(reel_views) / len(reel_views)) if reel_views else 0
+
     # Posts are newest-first from Apify; [:half] = recent, [half:] = older
     half = len(posts) // 2
     if half > 0:
@@ -138,12 +141,25 @@ def scrape_profile(username: str, apify_token=None) -> Profile:
     if profile_result:
         profile.username = profile_result.get("username", username)
         profile.full_name = profile_result.get("fullName", "")
-        profile.followers = profile_result.get("followersCount", 0)
-        profile.following = profile_result.get("followsCount", 0)
-        profile.bio = profile_result.get("biography", "")
-        profile.category = profile_result.get("businessCategoryName", "Creator")
-        profile.posts_count = profile_result.get("postsCount", 0)
-        profile.profile_pic_url = profile_result.get("profilePicUrl", "")
+        profile.followers = profile_result.get("followersCount") or profile_result.get("followers") or 0
+        profile.following = profile_result.get("followsCount") or profile_result.get("followingCount") or profile_result.get("following") or 0
+        profile.bio = profile_result.get("biography", "") or ""
+        profile.category = profile_result.get("businessCategoryName") or profile_result.get("category") or "Creator"
+        profile.posts_count = (
+            profile_result.get("postsCount")
+            or profile_result.get("mediaCount")
+            or profile_result.get("igtvVideoCount")
+            or 0
+        )
+        profile.profile_pic_url = profile_result.get("profilePicUrl") or profile_result.get("profilePicUrlHD") or ""
+
+        # Merge profile's latestPosts (all formats: photo/carousel/reel) so
+        # posting frequency reflects true activity, not just Reels.
+        for lp in (profile_result.get("latestPosts") or []):
+            url = lp.get("url", "")
+            if url and any(rp.get("url") == url for rp in reel_items):
+                continue
+            reel_items.append(lp)
 
     for item in reel_items:
         p = Post()
