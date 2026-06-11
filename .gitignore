@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+*.egg
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Claude/skills cache
+.agents/
+.claude/
+skills-lock.json
+
+# Data files
+*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
