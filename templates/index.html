@@ -301,6 +301,38 @@ footer .nav-logo{text-decoration:none;}
 }
 .new-search-btn:hover{border-color:var(--b3);color:var(--t1);}
 
+/* Profile Hero Card */
+.profile-hero{
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  background:linear-gradient(135deg,rgba(67,56,202,.12) 0%,rgba(13,148,136,.08) 100%);
+  border:1px solid rgba(129,140,248,.15);
+  border-radius:16px;padding:24px 28px;margin-bottom:24px;
+  flex-wrap:wrap;row-gap:20px;
+}
+.profile-hero-left{display:flex;align-items:center;gap:16px;min-width:0;}
+.profile-hero-avatar{
+  width:64px;height:64px;border-radius:50%;flex-shrink:0;
+  background:var(--grad);display:flex;align-items:center;justify-content:center;
+  font-size:24px;font-weight:800;color:#fff;overflow:hidden;
+  border:2px solid rgba(129,140,248,.3);
+}
+.profile-hero-avatar img{width:100%;height:100%;object-fit:cover;}
+.profile-hero-info{min-width:0;}
+.profile-hero-name{font-size:20px;font-weight:800;letter-spacing:-.5px;margin-bottom:2px;}
+.profile-hero-category{font-size:12px;font-weight:600;color:var(--pu2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.profile-hero-bio{font-size:13px;color:var(--t2);line-height:1.5;max-width:340px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.profile-hero-stats{display:flex;align-items:center;gap:0;flex-shrink:0;}
+.profile-hero-stat{display:flex;flex-direction:column;align-items:center;padding:0 20px;text-align:center;}
+.profile-hero-stat-val{font-size:18px;font-weight:700;color:var(--t1);margin-bottom:3px;}
+.profile-hero-stat-label{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;}
+.profile-hero-stat-divider{width:1px;height:36px;background:var(--b1);}
+@media(max-width:900px){
+  .profile-hero{flex-direction:column;align-items:flex-start;}
+  .profile-hero-stats{flex-wrap:wrap;gap:12px;}
+  .profile-hero-stat-divider{display:none;}
+  .profile-hero-stat{padding:0 12px;}
+}
+
 /* Main content */
 .dash-main{
   margin-left:220px;flex:1;padding:28px 32px;
@@ -978,7 +1010,46 @@ footer .nav-logo{text-decoration:none;}
 
       <!-- OVERVIEW -->
       <div id="section-overview" class="dash-section active">
-        <div class="score-wrap anim-1" id="score-wrap">
+
+        <!-- Profile Hero Card -->
+        <div class="profile-hero anim-1">
+          <div class="profile-hero-left">
+            <div class="profile-hero-avatar" id="hero-avatar">U</div>
+            <div class="profile-hero-info">
+              <div class="profile-hero-name" id="hero-username">@username</div>
+              <div class="profile-hero-category" id="hero-category">Creator</div>
+              <div class="profile-hero-bio" id="hero-bio"></div>
+            </div>
+          </div>
+          <div class="profile-hero-stats">
+            <div class="profile-hero-stat">
+              <div class="profile-hero-stat-val fira" id="hero-followers">—</div>
+              <div class="profile-hero-stat-label">Followers</div>
+            </div>
+            <div class="profile-hero-stat-divider"></div>
+            <div class="profile-hero-stat">
+              <div class="profile-hero-stat-val fira" id="hero-following">—</div>
+              <div class="profile-hero-stat-label">Following</div>
+            </div>
+            <div class="profile-hero-stat-divider"></div>
+            <div class="profile-hero-stat">
+              <div class="profile-hero-stat-val fira" id="hero-posts">—</div>
+              <div class="profile-hero-stat-label">Posts</div>
+            </div>
+            <div class="profile-hero-stat-divider"></div>
+            <div class="profile-hero-stat">
+              <div class="profile-hero-stat-val fira" id="hero-engagement">—</div>
+              <div class="profile-hero-stat-label">Eng. Rate</div>
+            </div>
+            <div class="profile-hero-stat-divider"></div>
+            <div class="profile-hero-stat">
+              <div class="profile-hero-stat-val fira" id="hero-trend-stat">—</div>
+              <div class="profile-hero-stat-label">Trend</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="score-wrap" id="score-wrap">
           <div class="score-ring-wrap">
             <svg width="160" height="160" viewBox="0 0 160 160">
               <circle cx="80" cy="80" r="64" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="10"/>
@@ -1392,6 +1463,22 @@ function buildDashboard(d) {
   document.getElementById('dash-username').textContent = '@' + username;
   document.getElementById('dash-followers').textContent = fmtNum(profile.followers || 0) + ' followers';
   document.getElementById('dash-score-pill').textContent = 'Score: ' + (d.overall_score || '—') + '/100';
+
+  // Profile Hero Card
+  var heroAv = document.getElementById('hero-avatar');
+  if (profile.profile_pic_url)
+    heroAv.innerHTML = '<img src="' + profile.profile_pic_url + '" alt="">';
+  else
+    heroAv.textContent = username[0].toUpperCase();
+  document.getElementById('hero-username').textContent = '@' + username;
+  document.getElementById('hero-category').textContent = profile.category || 'Creator';
+  document.getElementById('hero-bio').textContent = profile.bio || '';
+  document.getElementById('hero-followers').textContent = fmtNum(profile.followers || 0);
+  document.getElementById('hero-following').textContent = fmtNum(profile.following || 0);
+  document.getElementById('hero-posts').textContent = fmtNum(profile.posts_count || 0);
+  document.getElementById('hero-engagement').textContent = (d.analytics && d.analytics.avg_engagement_rate) ? d.analytics.avg_engagement_rate : (profile.avg_engagement_rate ? profile.avg_engagement_rate + '%' : '—');
+  var trendMap = {growing: '📈 Growing', stable: '➡️ Stable', declining: '📉 Declining'};
+  document.getElementById('hero-trend-stat').textContent = trendMap[profile.engagement_trend] || profile.engagement_trend || '—';
 
   // Score ring
   animateScore(d.overall_score || 0);
