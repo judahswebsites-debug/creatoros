@@ -179,7 +179,7 @@ def analyze_profile(profile, api_key=None) -> dict:
 
     try:
         message = client.messages.create(
-            model="claude-opus-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
@@ -220,7 +220,7 @@ FORMATTING RULES — follow these exactly:
 
     try:
         resp = client.messages.create(
-            model="claude-opus-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             system=system,
             messages=[{"role": "user", "content": message}],
