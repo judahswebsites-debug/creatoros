@@ -194,7 +194,16 @@ You have analyzed @{username}'s account. Here is their full growth report:
 {json.dumps(analysis, indent=2)}
 
 Answer the user's question with specific, actionable advice based on this data.
-Be concise, direct, and data-driven. Use specific numbers from the report when relevant."""
+
+FORMATTING RULES — follow these exactly:
+- Use short bullet points (•) for lists, not long paragraphs
+- Bold key metrics or terms with **asterisks**
+- Keep each bullet to 1-2 lines max
+- Use section headers (e.g. "**What to do:**") when covering multiple topics
+- Never write a wall of text — break everything into scannable chunks
+- Lead with the most important point first
+- Max 5-6 bullets per response unless the question clearly needs more
+- Use specific numbers from the report (engagement rate, follower count, etc.)"""
 
     try:
         resp = client.messages.create(
