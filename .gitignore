@@ -21,6 +21,11 @@ skills-lock.json
 # Data files
 *.csv
 
+# Async job store (SQLite)
+jobs.db
+jobs.db-wal
+jobs.db-shm
+
 # OS
 .DS_Store
 Thumbs.db

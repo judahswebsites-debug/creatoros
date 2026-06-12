@@ -22,7 +22,7 @@ ACCURACY RULES — these are critical:
   account's real follower count and observed engagement."""
 
 
-def _build_prompt(profile) -> str:
+def _profile_data(profile) -> dict:
     posts_summary = []
     for p in profile.posts[:20]:
         posts_summary.append({
@@ -35,7 +35,7 @@ def _build_prompt(profile) -> str:
             "timestamp": p.timestamp,
         })
 
-    data = {
+    return {
         "username": profile.username,
         "followers": profile.followers,
         "following": profile.following,
@@ -48,6 +48,10 @@ def _build_prompt(profile) -> str:
         "top_format": profile.top_format,
         "posts_analyzed": posts_summary,
     }
+
+
+def _build_prompt(profile) -> str:
+    data = _profile_data(profile)
 
     return f"""Analyze this Instagram account and return a complete JSON growth report.
 
@@ -171,27 +175,152 @@ Return ONLY valid JSON matching this exact schema:
 }}"""
 
 
-def analyze_profile(profile, api_key=None) -> dict:
+def _call_claude_json(prompt: str, api_key=None, max_tokens=4096) -> dict:
     key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
     client = Anthropic(api_key=key)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=max_tokens,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = message.content[0].text.strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.rsplit("```", 1)[0]
+    return json.loads(repair_json(raw))
 
-    prompt = _build_prompt(profile)
 
+def analyze_profile(profile, api_key=None) -> dict:
+    """Full single-shot report (kept for backwards compatibility)."""
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = message.content[0].text.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.split("```", 2)[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.rsplit("```", 1)[0]
-        data = json.loads(repair_json(raw))
+        data = _call_claude_json(_build_prompt(profile), api_key, max_tokens=4096)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _overview_prompt(profile) -> str:
+    data = _profile_data(profile)
+    return f"""Analyze this Instagram account and return the CORE growth snapshot as JSON.
+
+Account Data:
+{json.dumps(data, indent=2)}
+
+Return ONLY valid JSON matching this exact schema:
+{{
+  "overall_score": <integer 0-100>,
+  "sub_scores": {{
+    "content_quality": <integer 0-100>,
+    "timing_optimization": <integer 0-100>,
+    "growth_momentum": <integer 0-100>
+  }},
+  "bottleneck": "<single most critical growth issue, 1-2 sentences>",
+  "next_best_post": {{
+    "title": "<content idea title>",
+    "hook": "<opening line / hook for the post>",
+    "predicted_views": "<e.g. 45K-80K>",
+    "estimated_reach": "<e.g. 28K-52K>",
+    "confidence_pct": <integer 65-95>,
+    "format": "<Reel|Carousel|Static>",
+    "best_time": "<e.g. 7:00 PM>",
+    "best_day": "<e.g. Tuesday>",
+    "script_outline": ["<step 1>", "<step 2>", "<step 3>", "<step 4>", "<step 5>"],
+    "caption": "<full caption with emojis>",
+    "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]
+  }},
+  "analytics": {{
+    "avg_engagement_rate": "<e.g. 4.2%>",
+    "posting_frequency_per_week": "<e.g. 3.5x / week>",
+    "best_posting_days": ["<Day1>", "<Day2>"],
+    "engagement_trend": "<growing|stable|declining>",
+    "top_format": "<Reels|Images|Carousels>"
+  }},
+  "scrape_meta": {{
+    "posts_scraped": {profile.meta.get('posts_scraped', 0)},
+    "reels_scraped": {profile.meta.get('reels_scraped', 0)},
+    "avg_engagement_rate": "{profile.avg_engagement_rate}%",
+    "scrape_quality": "{profile.meta.get('scrape_quality', 'medium')}"
+  }}
+}}"""
+
+
+def _deep_prompt(profile, overview=None) -> str:
+    data = _profile_data(profile)
+    ctx = ""
+    if overview:
+        ctx = f"\nYour earlier snapshot (stay consistent with it):\n{json.dumps({k: overview.get(k) for k in ('overall_score', 'bottleneck', 'analytics') if overview.get(k)}, indent=2)}\n"
+    return f"""Produce the DEEP growth modules for this Instagram account as JSON.
+{ctx}
+Account Data:
+{json.dumps(data, indent=2)}
+
+Return ONLY valid JSON matching this exact schema:
+{{
+  "content_pillars": [
+    {{"name": "<pillar name>", "avg_views": "<e.g. 32K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 18K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 9K>", "verdict": "<Strong|Growing|Weak>"}}
+  ],
+  "viral_patterns": {{
+    "what_works": [
+      {{"headline": "<pattern name>", "value": "<stat>", "description": "<why it works>", "action": "<do more of this>"}},
+      {{"headline": "<pattern name>", "value": "<stat>", "description": "<why it works>", "action": "<do more of this>"}}
+    ],
+    "what_doesnt": [
+      {{"headline": "<pattern name>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}},
+      {{"headline": "<pattern name>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}}
+    ]
+  }},
+  "top_tactics": [
+    {{"name": "<tactic>", "impact": "<impact description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 day>"}},
+    {{"name": "<tactic>", "impact": "<impact description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 3 days>"}},
+    {{"name": "<tactic>", "impact": "<impact description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 week>"}}
+  ],
+  "video_blueprints": [
+    {{"rank": 1, "title": "<video title>", "hook": "<opening hook line>", "why": "<why this performs>", "tags": ["<tag1>", "<tag2>", "<tag3>"], "predicted_views": "<e.g. 80K-150K>", "saves": "<e.g. 4K-7K>", "shares": "<e.g. 2K-4K>", "shot_list": ["<shot 1>", "<shot 2>", "<shot 3>", "<shot 4>"], "caption": "<full caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]}},
+    {{"rank": 2, "title": "<video title>", "hook": "<opening hook line>", "why": "<why this performs>", "tags": ["<tag1>", "<tag2>"], "predicted_views": "<e.g. 50K-90K>", "saves": "<e.g. 2K-4K>", "shares": "<e.g. 1K-2K>", "shot_list": ["<shot 1>", "<shot 2>", "<shot 3>"], "caption": "<full caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4"]}},
+    {{"rank": 3, "title": "<video title>", "hook": "<opening hook line>", "why": "<why this performs>", "tags": ["<tag1>", "<tag2>"], "predicted_views": "<e.g. 30K-60K>", "saves": "<e.g. 1K-3K>", "shares": "<e.g. 800-1.5K>", "shot_list": ["<shot 1>", "<shot 2>", "<shot 3>"], "caption": "<full caption>", "hashtags": ["#tag1", "#tag2", "#tag3"]}}
+  ],
+  "trend_opportunities": [
+    {{"name": "<trend name>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle for this account>"}},
+    {{"name": "<trend name>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle for this account>"}}
+  ],
+  "monetization": {{
+    "brand_deal_score": <integer 0-100>,
+    "status": "<Ready to monetize|Almost ready|Building foundation>",
+    "suggested_rate": "<e.g. $500-$1,200 per post>",
+    "niches": ["<niche1>", "<niche2>"],
+    "milestone_text": "<what unlocks the next monetization tier>"
+  }},
+  "follower_forecast": {{
+    "now": <integer followers>,
+    "three_months": <integer>,
+    "six_months": <integer>,
+    "twelve_months": <integer>,
+    "growth_lever": "<single most impactful action to accelerate growth>"
+  }}
+}}"""
+
+
+def analyze_overview(profile, api_key=None) -> dict:
+    """Fast first-paint: score, bottleneck, next best post, analytics."""
+    try:
+        data = _call_claude_json(_overview_prompt(profile), api_key, max_tokens=1600)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def analyze_deep(profile, api_key=None, overview=None) -> dict:
+    """Heavy modules: pillars, viral patterns, tactics, blueprints, trends, monetization, forecast."""
+    try:
+        data = _call_claude_json(_deep_prompt(profile, overview), api_key, max_tokens=4096)
         data["ok"] = True
         return data
     except Exception as e:

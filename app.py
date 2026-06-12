@@ -1,5 +1,9 @@
 import os
 import json
+import time
+import uuid
+import sqlite3
+import threading
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -8,7 +12,7 @@ load_dotenv()
 
 from demo_routes import demo_bp
 from scraper import scrape_profile
-from analyzer import analyze_profile, chat_with_context
+from analyzer import analyze_profile, analyze_overview, analyze_deep, chat_with_context
 
 app = Flask(__name__)
 CORS(app)
@@ -16,6 +20,110 @@ app.register_blueprint(demo_bp)
 
 # In-memory store for chat context (keyed by username)
 _analysis_cache: dict = {}
+
+# ──────────────────────────────────────────────────────────────
+# Async job store — SQLite on the instance filesystem so it is
+# shared across all Gunicorn workers (in-memory dicts are not).
+# ──────────────────────────────────────────────────────────────
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.db")
+
+
+def _db():
+    conn = sqlite3.connect(_DB_PATH, timeout=15)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=10000")
+    return conn
+
+
+def _init_jobs_db():
+    with _db() as c:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS jobs "
+            "(id TEXT PRIMARY KEY, status TEXT, data TEXT, error TEXT, updated REAL)"
+        )
+
+
+_init_jobs_db()
+
+
+def _job_set(job_id, status, data=None, error=None):
+    with _db() as c:
+        c.execute(
+            "INSERT INTO jobs(id, status, data, error, updated) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(id) DO UPDATE SET status=excluded.status, "
+            "data=COALESCE(excluded.data, jobs.data), "
+            "error=excluded.error, updated=excluded.updated",
+            (job_id, status, json.dumps(data) if data is not None else None, error, time.time()),
+        )
+
+
+def _job_get(job_id):
+    with _db() as c:
+        row = c.execute(
+            "SELECT status, data, error FROM jobs WHERE id=?", (job_id,)
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "status": row[0],
+        "data": json.loads(row[1]) if row[1] else None,
+        "error": row[2],
+    }
+
+
+def _profile_to_dict(profile):
+    return {
+        "username": profile.username,
+        "full_name": profile.full_name,
+        "followers": profile.followers,
+        "following": profile.following,
+        "posts_count": profile.posts_count,
+        "bio": profile.bio,
+        "category": profile.category,
+        "profile_pic_url": profile.profile_pic_url,
+        "avg_engagement_rate": profile.avg_engagement_rate,
+        "posting_frequency_per_week": profile.posting_frequency_per_week,
+        "best_posting_days": profile.best_posting_days,
+        "engagement_trend": profile.engagement_trend,
+        "top_format": profile.top_format,
+        "avg_reel_views": profile.meta.get("avg_reel_views", 0),
+        "posts_scraped": profile.meta.get("posts_scraped", 0),
+    }
+
+
+def _run_analysis_job(job_id, username, api_key, apify_token):
+    """Background worker: scrape → fast overview → deep modules, writing
+    progress to SQLite at each stage so the client can render progressively."""
+    try:
+        _job_set(job_id, "scraping")
+        try:
+            profile = scrape_profile(username, apify_token)
+        except Exception as e:
+            _job_set(job_id, "error", error=f"Scraping failed: {e}")
+            return
+        profile_dict = _profile_to_dict(profile)
+
+        _job_set(job_id, "analyzing_overview")
+        overview = analyze_overview(profile, api_key)
+        if not overview.get("ok"):
+            _job_set(job_id, "error", error=overview.get("error", "Overview analysis failed"))
+            return
+        overview["profile"] = profile_dict
+        _job_set(job_id, "overview_ready", data=overview)
+
+        # Deep modules — runs in this thread, free of any request timeout.
+        deep = analyze_deep(profile, api_key, overview=overview)
+        merged = dict(overview)
+        if deep.get("ok"):
+            for k, v in deep.items():
+                if k != "ok":
+                    merged[k] = v
+        merged["profile"] = profile_dict
+        merged["deep_ok"] = bool(deep.get("ok"))
+        _analysis_cache[username.lower()] = merged
+        _job_set(job_id, "complete", data=merged)
+    except Exception as e:
+        _job_set(job_id, "error", error=str(e))
 
 
 @app.route("/")
@@ -71,6 +179,34 @@ def analyze():
 
     _analysis_cache[username.lower()] = result
     return jsonify(result)
+
+
+@app.route("/api/analyze/start", methods=["POST"])
+def analyze_start():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").lstrip("@").strip()
+    if not username:
+        return jsonify({"ok": False, "error": "Username is required"}), 400
+
+    api_key = data.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
+    apify_token = os.getenv("APIFY_API_TOKEN")
+
+    job_id = uuid.uuid4().hex
+    _job_set(job_id, "queued")
+    threading.Thread(
+        target=_run_analysis_job,
+        args=(job_id, username, api_key, apify_token),
+        daemon=True,
+    ).start()
+    return jsonify({"ok": True, "job_id": job_id})
+
+
+@app.route("/api/analyze/status/<job_id>")
+def analyze_status(job_id):
+    job = _job_get(job_id)
+    if not job:
+        return jsonify({"ok": False, "error": "Job not found"}), 404
+    return jsonify({"ok": True, **job})
 
 
 @app.route("/api/chat", methods=["POST"])
