@@ -709,6 +709,19 @@ footer .nav-logo{text-decoration:none;}
 .upgrade-cta:hover{box-shadow:var(--glow-pu);transform:translateY(-1px);}
 .upgrade-close-link{display:block;text-align:center;color:var(--t3);font-size:13px;cursor:pointer;}
 .upgrade-close-link:hover{color:var(--t2);}
+
+  .paywall-blur { filter: blur(8px); pointer-events: none; user-select: none; }
+  .paywall-overlay { position: relative; }
+  .paywall-card { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 100; width: 480px; max-width: 90%; background: #1e1b4b; border: 1px solid rgba(99,102,241,0.3); border-radius: 16px; padding: 2rem; text-align: center; }
+  .paywall-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+  .paywall-card p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+  .paywall-features { list-style: none; text-align: left; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 0; }
+  .paywall-features li { font-size: 13px; color: #94a3b8; display: flex; align-items: center; gap: 8px; }
+  .paywall-features li::before { content: "✓"; color: #34d399; font-weight: 700; }
+  .paywall-btn { width: 100%; background: linear-gradient(135deg,#6366f1,#0d9488); color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
+  .paywall-btn:disabled { opacity: .6; cursor: not-allowed; }
+  .paywall-later { display: block; text-align: center; color: #64748b; font-size: 13px; cursor: pointer; }
+  .toast-success { position: fixed; bottom: 32px; right: 32px; background: #059669; color: #fff; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-size: 14px; z-index: 9999; }
 </style>
 </head>
 <body>
@@ -1250,7 +1263,50 @@ footer .nav-logo{text-decoration:none;}
 </div>
 
 <!-- Scripts -->
-<script src="/static/components/DemoHook.js"></script>
+<script src="/static/components/DemoHook.js">
+// PAYWALL
+function isPro() { return localStorage.getItem('creatoros_pro') === '1'; }
+function getAnalysesUsed() { return parseInt(localStorage.getItem('creatoros_analyses_used') || '0', 10); }
+function incrementAnalysesUsed() { localStorage.setItem('creatoros_analyses_used', String(getAnalysesUsed() + 1)); }
+function showPaywallOverlay() {
+  var card = document.getElementById('paywall-card');
+  if (card) card.classList.remove('hide');
+}
+function hidePaywallOverlay() {
+  var card = document.getElementById('paywall-card');
+  if (card) card.classList.add('hide');
+}
+function dismissPaywall() { hidePaywallOverlay(); }
+function startCheckout() {
+  var btn = document.getElementById('paywall-upgrade-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
+  fetch('/api/checkout', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok && d.url) { window.location.href = d.url; }
+      else {
+        alert('Checkout error: ' + (d.error || 'Unknown'));
+        if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+      }
+    })
+    .catch(function(err) {
+      alert('Network error: ' + err);
+      if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+    });
+}
+(function() {
+  var p = new URLSearchParams(window.location.search);
+  if (p.get('upgraded') === '1' && p.get('session_id')) {
+    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok && d.paid) { localStorage.setItem('creatoros_pro', '1'); alert('Welcome to CreatorOS Pro!'); }
+      })
+      .finally(function() { window.history.replaceState({}, '', window.location.pathname); });
+  }
+})();
+
+</script>
 <script src="/static/components/AhaMomentCard.js"></script>
 <script src="/static/components/BenchmarkStrip.js"></script>
 <script src="/static/components/EmailPreview.js"></script>
