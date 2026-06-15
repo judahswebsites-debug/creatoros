@@ -8,6 +8,7 @@ from datetime import datetime
 
 BRIGHT_DATA_BASE = "https://api.brightdata.com/datasets/v3"
 BRIGHT_DATA_DATASET_ID = "gd_l1vikfch901nx3by4"
+BRIGHT_DATA_REELS_DATASET_ID = "gd_lyclm20il4r5helnj"
 
 
 @dataclass
@@ -136,11 +137,36 @@ def _scrape_and_wait(username: str, api_key: str) -> list:
     return r.json()
 
 
+def _scrape_reels(username: str, api_key: str) -> list:
+    url = f"{BRIGHT_DATA_BASE}/scrape"
+    params = {"dataset_id": BRIGHT_DATA_REELS_DATASET_ID, "include_errors": "true"}
+    payload = {"input": [{"url": f"https://www.instagram.com/{username}/", "num_of_posts": 30}]}
+    try:
+        resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and "snapshot_id" not in data:
+            return [data]
+    except Exception as e:
+        print(f"Reels scrape error: {e}")
+    return []
+
+
 def scrape_profile(username: str, api_key=None) -> Profile:
     api_key = api_key or os.getenv("BRIGHT_DATA_API_KEY", "")
     if not api_key:
         raise ValueError("BRIGHT_DATA_API_KEY is not set")
     items = _scrape_and_wait(username, api_key)
+    reels = _scrape_reels(username, api_key)
+    # Merge reels avoiding duplicates
+    seen_urls = {i.get("url", i.get("post_url", "")) for i in items}
+    for r in reels:
+        url = r.get("url", r.get("post_url", ""))
+        if url not in seen_urls:
+            items.append(r)
+            seen_urls.add(url)
     profile = Profile(username=username)
     posts: list[Post] = []
     profile_data = None
