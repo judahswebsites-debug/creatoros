@@ -1,10 +1,11 @@
 import os
+import re
 import json
 import time
 import uuid
 import sqlite3
 import threading
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -435,6 +436,108 @@ View your full growth report at creatorOS.app
 ---
 Sent every Monday at 8:00 AM | CreatorOS
 """
+
+
+# ──────────────────────────────────────────────────────────────
+# SEO / crawler endpoints
+# ──────────────────────────────────────────────────────────────
+SITE_URL = os.getenv("SITE_URL", "https://creatoros-57b3.onrender.com")
+
+
+@app.route("/robots.txt")
+def robots():
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n\n"
+        f"Sitemap: {SITE_URL}/sitemap.xml\n"
+    )
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap():
+    body = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"  <url><loc>{SITE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n"
+        "</urlset>\n"
+    )
+    return Response(body, mimetype="application/xml")
+
+
+# ──────────────────────────────────────────────────────────────
+# Growth agent chat
+# ──────────────────────────────────────────────────────────────
+@app.route("/api/agent/chat", methods=["POST"])
+def agent_chat():
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+
+    username = (data.get("username") or "").lstrip("@").lower().strip()
+    analysis = _analysis_cache.get(username) or data.get("analysis") or {}
+    reply = chat_with_context(username, analysis, message)
+    return jsonify({"ok": True, "reply": reply})
+
+
+# ──────────────────────────────────────────────────────────────
+# Raw Apify profile lookup
+# ──────────────────────────────────────────────────────────────
+@app.route("/api/apify/profile", methods=["GET"])
+def apify_profile():
+    username = (request.args.get("username") or "").lstrip("@").strip()
+    if not username:
+        return jsonify({"error": "username is required"}), 400
+    try:
+        profile = scrape_profile(username, os.getenv("APIFY_API_TOKEN"))
+    except Exception:
+        return jsonify({"ok": False, "error": "Profile lookup failed"}), 502
+    return jsonify({"ok": True, "profile": _profile_to_dict(profile)})
+
+
+# ──────────────────────────────────────────────────────────────
+# Email capture (lead list)
+# ──────────────────────────────────────────────────────────────
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _save_email(email: str) -> None:
+    with _db() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS emails (email TEXT, created REAL)")
+        c.execute("INSERT INTO emails(email, created) VALUES(?,?)", (email, time.time()))
+
+
+@app.route("/api/email/capture", methods=["POST"])
+def email_capture():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    if not email or not _EMAIL_RE.match(email):
+        return jsonify({"ok": False, "error": "invalid email"}), 400
+    _save_email(email)
+    return jsonify({"ok": True})
+
+
+# ──────────────────────────────────────────────────────────────
+# Billing — Stripe checkout (not live yet)
+# ──────────────────────────────────────────────────────────────
+@app.route("/api/billing/checkout", methods=["POST"])
+def billing_checkout():
+    # Payments are not live yet. Fail closed with a clear 503 (never a 500 or a
+    # raw Stripe object). Real Stripe Checkout session creation gets wired here
+    # once STRIPE_SECRET_KEY is set on the host.
+    return jsonify({"error": "Payments aren't live yet — coming this week."}), 503
+
+
+@app.route("/billing/success")
+def billing_success():
+    return redirect("/", code=302)
+
+
+@app.route("/billing/cancel")
+def billing_cancel():
+    return redirect("/", code=302)
 
 
 if __name__ == "__main__":
