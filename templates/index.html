@@ -758,6 +758,7 @@ footer .nav-logo{text-decoration:none;}
         </button>
       </div>
       <div class="hero-inp-error hide" id="inp-error">Please enter an Instagram username</div>
+      <div class="hide" id="api-key-wrap" style="margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:6px;"><label style="font-size:13px;color:var(--t2);">Anthropic API Key required to run analysis</label><input type="password" id="api-key-inp" placeholder="sk-ant-..." autocomplete="off" style="background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:10px 14px;color:var(--t1);font-family:'Outfit',sans-serif;font-size:14px;width:320px;max-width:90vw;"></div>
       <p class="hero-hint">Free · No signup required · Results in ~30s</p>
 
       <div class="hero-pills">
@@ -1265,6 +1266,13 @@ var G = {
   analyticsInited: false,
 };
 
+fetch('/api/health').then(function(r){ return r.json(); }).then(function(h){
+  if (!h.api_key_configured) {
+    var wrap = document.getElementById('api-key-wrap');
+    if (wrap) wrap.classList.remove('hide');
+  }
+}).catch(function(){});
+
 // ══════════════════════════════
 // NAV
 // ══════════════════════════════
@@ -1310,7 +1318,7 @@ function startAnalysis() {
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: raw }),
+    body: JSON.stringify({ username: raw, api_key: (document.getElementById('api-key-inp') || {}).value || undefined }),
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
