@@ -140,6 +140,30 @@ def health():
     })
 
 
+@app.route("/api/debug-scrape")
+def debug_scrape():
+    import requests as _req
+    username = request.args.get("u", "sam_sulek")
+    api_key = os.getenv("BRIGHT_DATA_API_KEY", "")
+    base = "https://api.brightdata.com/datasets/v3/scrape"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    ig_url = f"https://www.instagram.com/{username}/"
+    results = {}
+    for ds_name, ds_id in [("profile", "gd_l1vikfch901nx3by4"), ("reels", "gd_lyclm20il4r5helnj")]:
+        try:
+            r = _req.post(f"{base}?dataset_id={ds_id}&format=json&include_errors=true",
+                         json=[{"url": ig_url, "num_of_posts": 5}],
+                         headers=headers, timeout=60)
+            data = r.json()
+            if isinstance(data, list) and data:
+                results[ds_name] = {"count": len(data), "keys": list(data[0].keys()), "sample": data[0]}
+            else:
+                results[ds_name] = {"raw": data}
+        except Exception as e:
+            results[ds_name] = {"error": str(e)}
+    return jsonify(results)
+
+
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
     data = request.get_json(silent=True) or {}
