@@ -4,7 +4,7 @@ import time
 import uuid
 import sqlite3
 import threading
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -12,7 +12,7 @@ load_dotenv()
 
 from demo_routes import demo_bp
 from scraper import scrape_profile
-from analyzer import analyze_profile, analyze_overview, analyze_deep, analyze_deep_phase1, analyze_deep_phase2, analyze_deep_phase3, chat_with_context
+from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context
 
 app = Flask(__name__)
 CORS(app)
@@ -109,34 +109,10 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
             _job_set(job_id, "error", error=overview.get("error", "Overview analysis failed"))
             return
         overview["profile"] = profile_dict
+        from analyzer import _profile_data as _pd
+        overview["_profile_data"] = _pd(profile)
         _job_set(job_id, "overview_ready", data=overview)
-
-        # Deep modules — 3 phased calls so frontend can render progressively.
-        merged = dict(overview)
-        merged["profile"] = profile_dict
-
-        phase1 = analyze_deep_phase1(profile, api_key, overview=overview)
-        if phase1.get("ok"):
-            for k, v in phase1.items():
-                if k != "ok":
-                    merged[k] = v
-        _job_set(job_id, "deep_phase1", data=merged)
-
-        phase2 = analyze_deep_phase2(profile, api_key, overview=overview)
-        if phase2.get("ok"):
-            for k, v in phase2.items():
-                if k != "ok":
-                    merged[k] = v
-        _job_set(job_id, "deep_phase2", data=merged)
-
-        phase3 = analyze_deep_phase3(profile, api_key, overview=overview)
-        if phase3.get("ok"):
-            for k, v in phase3.items():
-                if k != "ok":
-                    merged[k] = v
-        merged["deep_ok"] = True
-        _analysis_cache[username.lower()] = merged
-        _job_set(job_id, "complete", data=merged)
+        # Deep analysis handled by SSE /api/analyze/stream-deep/<job_id>
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
 
@@ -247,6 +223,43 @@ def analyze_status(job_id):
         return jsonify({"ok": False, "error": "Job not found"}), 404
     return jsonify({"ok": True, **job})
 
+
+
+
+@app.route("/api/analyze/stream-deep/<job_id>")
+def stream_deep(job_id):
+    """SSE endpoint — streams deep analysis sections as Claude generates them."""
+    job = _job_get(job_id)
+    if not job or not job.get("data"):
+        return jsonify({"ok": False, "error": "Job not ready"}), 404
+    job_data = job["data"]
+    profile_data = job_data.get("_profile_data")
+    if not profile_data:
+        return jsonify({"ok": False, "error": "Profile data missing"}), 400
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    username = (job_data.get("profile") or {}).get("username", "").lower()
+
+    def generate():
+        merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
+        try:
+            for section_name, section_data in stream_deep_sections(profile_data, api_key, job_data):
+                merged[section_name] = section_data
+                payload = json.dumps({"type": "section", "key": section_name, "data": section_data})
+                yield f"data: {payload}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
+        merged["deep_ok"] = True
+        if username:
+            _analysis_cache[username] = merged
+        _job_set(job_id, "complete", data=merged)
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @app.route("/api/chat", methods=["POST"])
 def chat():

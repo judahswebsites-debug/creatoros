@@ -1367,43 +1367,35 @@ function pollJob(jobId) {
           return;
         }
 
-        // First paint: render the overview the moment it is ready
-        var isDeepPhase = (s.status === 'deep_phase1' || s.status === 'deep_phase2');
-        if ((s.status === 'overview_ready' || isDeepPhase || s.status === 'complete') && !G._overviewShown && s.data) {
+        // First paint: render overview then open SSE stream for deep sections
+        if (s.status === 'overview_ready' && !G._overviewShown && s.data) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
           buildDashboard(s.data);
-          if (s.status !== 'complete') markDeepLoading();
+          markDeepLoading();
           stopLoadingAnimation();
           finishLoadingBar(function() {
             showPage('page-results');
             switchSection('overview', document.querySelector('[data-section=overview]'));
           });
+          startDeepStream(jobId);
         }
 
-        // Progressive deep phases: render whatever sections are ready
-        if (isDeepPhase && G._overviewShown && s.data) {
-          G.data = s.data;
-          G.analysisData = s.data;
-          buildDeep(s.data);
-        }
-
-        // All deep modules done
-        if (s.status === 'complete' && s.data) {
+        // SSE stream sets job complete — polling stops
+        if (s.status === 'complete') {
           clearInterval(G._jobPoll);
-          G.data = s.data;
-          G.analysisData = s.data;
-          if (!G._overviewShown) {
+          if (!G._overviewShown && s.data) {
             G._overviewShown = true;
+            G.data = s.data;
+            G.analysisData = s.data;
             buildDashboard(s.data);
+            buildDeep(s.data);
             stopLoadingAnimation();
             finishLoadingBar(function() {
               showPage('page-results');
               switchSection('overview', document.querySelector('[data-section=overview]'));
             });
-          } else {
-            buildDeep(s.data);
           }
         }
       })
@@ -1432,6 +1424,29 @@ function markDeepLoading() {
   if (fc) fc.innerHTML = skel;
   var gl = document.getElementById('growth-lever-text');
   if (gl) gl.innerHTML = '<span class="deep-loading-note"><span class="dot"></span> Generating deep insights…</span>';
+}
+
+function startDeepStream(jobId) {
+  if (G._deepStream) { try { G._deepStream.close(); } catch(e) {} }
+  var es = new EventSource('/api/analyze/stream-deep/' + jobId);
+  G._deepStream = es;
+  es.onmessage = function(e) {
+    try {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'section') {
+        G.data = G.data || {};
+        G.data[msg.key] = msg.data;
+        G.analysisData = G.data;
+        var partial = {};
+        partial[msg.key] = msg.data;
+        buildDeep(partial);
+      } else if (msg.type === 'done' || msg.type === 'error') {
+        es.close();
+        G._deepStream = null;
+      }
+    } catch(err) {}
+  };
+  es.onerror = function() { es.close(); G._deepStream = null; };
 }
 
 document.getElementById('main-inp').addEventListener('keydown', function(e) {
