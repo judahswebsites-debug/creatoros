@@ -124,7 +124,7 @@ def _parse_items(items, username):
 def _build_post(item):
     p = Post()
     p.url = item.get("post_url", "") or item.get("url", "") or ""
-    raw_type = (item.get("type", "") or item.get("media_type", "") or "").lower()
+    raw_type = (item.get("content_type", "") or item.get("type", "") or item.get("media_type", "") or "").lower()
     if raw_type in ("video", "reel", "clips") or "reel" in p.url.lower() or item.get("is_video"):
         p.type = "reel"
     p.views    = item.get("video_view_count") or item.get("view_count") or item.get("views") or item.get("play_count") or 0
