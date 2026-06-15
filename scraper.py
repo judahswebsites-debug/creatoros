@@ -1,9 +1,13 @@
-import asyncio
 import os
+import re
+import time
+import requests
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
-from apify_client import ApifyClient
+
+
+BRIGHT_DATA_BASE = "https://api.brightdata.com/datasets/v3"
+BRIGHT_DATA_DATASET_ID = "gd_l1vikfch901nx3by4"
 
 
 @dataclass
@@ -41,16 +45,12 @@ def _compute_analytics(profile: Profile) -> None:
     posts = profile.posts
     if not posts:
         return
-
     followers = max(profile.followers, 1)
-
     engagement_rates = []
     for p in posts:
         er = (p.likes + p.comments) / followers * 100
         engagement_rates.append(er)
-
     profile.avg_engagement_rate = round(sum(engagement_rates) / len(engagement_rates), 2)
-
     day_counts: dict = {}
     for p in posts:
         if p.timestamp:
@@ -60,12 +60,9 @@ def _compute_analytics(profile: Profile) -> None:
                 day_counts[day] = day_counts.get(day, 0) + 1
             except Exception:
                 pass
-
     if day_counts:
         sorted_days = sorted(day_counts, key=day_counts.get, reverse=True)
         profile.best_posting_days = sorted_days[:3]
-
-        # Compute actual date range for accurate frequency
         timestamps = []
         for p in posts:
             if p.timestamp:
@@ -78,15 +75,11 @@ def _compute_analytics(profile: Profile) -> None:
             profile.posting_frequency_per_week = round(len(posts) / date_range_days * 7, 1)
         else:
             profile.posting_frequency_per_week = 0.0
-
     reel_count = sum(1 for p in posts if p.type in ("reel", "video"))
     image_count = len(posts) - reel_count
     profile.top_format = "Reels" if reel_count >= image_count else "Images"
-
     reel_views = [p.views for p in posts if p.type in ("reel", "video") and p.views]
     profile.meta["avg_reel_views"] = round(sum(reel_views) / len(reel_views)) if reel_views else 0
-
-    # Posts are newest-first from Apify; [:half] = recent, [half:] = older
     half = len(posts) // 2
     if half > 0:
         recent_avg = sum(engagement_rates[:half]) / half
@@ -99,117 +92,110 @@ def _compute_analytics(profile: Profile) -> None:
             profile.engagement_trend = "stable"
 
 
-def scrape_profile(username: str, apify_token=None) -> Profile:
-    token = apify_token or os.getenv("APIFY_API_TOKEN", "")
-    client = ApifyClient(token)
+def _bright_data_headers(api_key: str) -> dict:
+    return {"Authorization": f"Bearer {api_key}"}
 
+
+def _trigger_collection(username: str, api_key: str) -> str:
+    url = f"{BRIGHT_DATA_BASE}/trigger"
+    params = {"dataset_id": BRIGHT_DATA_DATASET_ID, "include_errors": "true"}
+    payload = [{"url": f"https://www.instagram.com/{username}/"}]
+    resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    snapshot_id = data.get("snapshot_id")
+    if not snapshot_id:
+        raise ValueError(f"Bright Data trigger did not return snapshot_id: {data}")
+    return snapshot_id
+
+
+def _poll_until_ready(snapshot_id: str, api_key: str, poll_interval: int = 5, timeout: int = 300) -> None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        resp = requests.get(
+            f"{BRIGHT_DATA_BASE}/progress/{snapshot_id}",
+            headers=_bright_data_headers(api_key),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        status = resp.json().get("status", "")
+        if status == "ready":
+            return
+        if status in ("failed", "error"):
+            raise RuntimeError(f"Bright Data snapshot {snapshot_id} failed with status: {status}")
+        time.sleep(poll_interval)
+    raise TimeoutError(f"Bright Data snapshot {snapshot_id} not ready after {timeout}s")
+
+
+def _download_snapshot(snapshot_id: str, api_key: str) -> list:
+    resp = requests.get(
+        f"{BRIGHT_DATA_BASE}/snapshot/{snapshot_id}",
+        params={"format": "json"},
+        headers=_bright_data_headers(api_key),
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def scrape_profile(username: str, api_key=None) -> Profile:
+    api_key = api_key or os.getenv("BRIGHT_DATA_API_KEY", "")
+    if not api_key:
+        raise ValueError("BRIGHT_DATA_API_KEY is not set")
+    snapshot_id = _trigger_collection(username, api_key)
+    _poll_until_ready(snapshot_id, api_key)
+    items = _download_snapshot(snapshot_id, api_key)
     profile = Profile(username=username)
     posts: list[Post] = []
-
-    profile_result = None
-    reel_items = []
-
-    def _dataset_id(run):
-        return run.default_dataset_id if hasattr(run, "default_dataset_id") else run["defaultDatasetId"]
-
-    def _scrape_profile_actor():
-        run = client.actor("apify/instagram-profile-scraper").call(
-            run_input={
-                "usernames": [username],
-                "resultsType": "details",
-            }
-        )
-        for item in client.dataset(_dataset_id(run)).iterate_items():
-            return item
-        return None
-
-    def _scrape_reel_actor():
-        run = client.actor("apify/instagram-reel-scraper").call(
-            run_input={
-                "username": [username],
-                "resultsLimit": 30,
-            }
-        )
-        return list(client.dataset(_dataset_id(run)).iterate_items())
-
-    # Run both Apify actors concurrently — they are independent, and on a
-    # slow free instance running them sequentially blows the worker timeout.
-    from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        profile_future = ex.submit(_scrape_profile_actor)
-        reel_future = ex.submit(_scrape_reel_actor)
-        try:
-            profile_result = profile_future.result()
-        except Exception as e:
-            print(f"Profile scrape error: {e}")
-        try:
-            reel_items = reel_future.result()
-        except Exception as e:
-            print(f"Reel scrape error: {e}")
-
-    if profile_result:
-        profile.username = profile_result.get("username", username)
-        profile.full_name = profile_result.get("fullName", "")
-        profile.followers = profile_result.get("followersCount") or profile_result.get("followers") or 0
-        profile.following = profile_result.get("followsCount") or profile_result.get("followingCount") or profile_result.get("following") or 0
-        profile.bio = profile_result.get("biography", "") or ""
-        profile.category = profile_result.get("businessCategoryName") or profile_result.get("category") or "Creator"
-        profile.posts_count = (
-            profile_result.get("postsCount")
-            or profile_result.get("mediaCount")
-            or profile_result.get("igtvVideoCount")
-            or 0
-        )
-        profile.profile_pic_url = profile_result.get("profilePicUrl") or profile_result.get("profilePicUrlHD") or ""
-
-        # Merge profile's latestPosts (all formats: photo/carousel/reel) so
-        # posting frequency reflects true activity, not just Reels.
-        for lp in (profile_result.get("latestPosts") or []):
-            url = lp.get("url", "")
-            if url and any(rp.get("url") == url for rp in reel_items):
-                continue
-            reel_items.append(lp)
-
-    for item in reel_items:
+    profile_data = None
+    post_items = []
+    for item in items:
+        if item.get("followers") is not None and not item.get("post_url"):
+            profile_data = item
+        else:
+            post_items.append(item)
+    if profile_data:
+        profile.username = profile_data.get("username", username)
+        profile.full_name = profile_data.get("full_name", "") or profile_data.get("name", "")
+        profile.followers = profile_data.get("followers", 0) or 0
+        profile.following = profile_data.get("following", 0) or 0
+        profile.bio = profile_data.get("biography", "") or profile_data.get("bio", "") or ""
+        profile.category = profile_data.get("category", "") or "Creator"
+        profile.posts_count = profile_data.get("posts", 0) or profile_data.get("media_count", 0) or 0
+        profile.profile_pic_url = profile_data.get("profile_pic_url", "") or ""
+    for item in post_items:
         p = Post()
-        p.url = item.get("url", "")
-        raw_type = (item.get("type", "") or item.get("productType", "") or "").lower()
-        if raw_type in ("video", "reel", "clips") or "reel" in p.url.lower() or item.get("isVideo"):
+        p.url = item.get("post_url", "") or item.get("url", "")
+        raw_type = (item.get("type", "") or item.get("media_type", "") or "").lower()
+        if raw_type in ("video", "reel", "clips") or "reel" in p.url.lower() or item.get("is_video"):
             p.type = "reel"
         else:
             p.type = "image"
-        p.views = item.get("videoViewCount") or item.get("viewsCount") or item.get("videoPlayCount") or 0
-        p.likes = item.get("likesCount", 0)
-        p.comments = item.get("commentsCount", 0)
-        p.timestamp = item.get("timestamp", "")
-        caption_raw = item.get("caption", "") or ""
-        # Use Apify's pre-parsed hashtags list; fall back to regex on caption
+        p.views = item.get("video_view_count", 0) or item.get("views", 0) or 0
+        p.likes = item.get("likes", 0) or 0
+        p.comments = item.get("comments", 0) or 0
+        p.timestamp = item.get("timestamp", "") or item.get("date_posted", "") or ""
+        caption_raw = item.get("description", "") or item.get("caption", "") or ""
         raw_tags = item.get("hashtags") or []
         if raw_tags:
             p.hashtags = [f"#{t}" if not t.startswith("#") else t for t in raw_tags]
         else:
-            import re
             p.hashtags = re.findall(r"#\w+", caption_raw)
         p.caption = caption_raw
         posts.append(p)
-
     profile.posts = posts
-
     reels_count = sum(1 for p in posts if p.type in ("reel", "video"))
     images_count = len(posts) - reels_count
     all_tags: set = set()
     for p in posts:
         all_tags.update(p.hashtags)
-
     profile.meta = {
         "posts_scraped": len(posts),
         "reels_scraped": reels_count,
         "images_scraped": images_count,
         "hashtags_analyzed": len(all_tags),
         "scrape_quality": "high" if len(posts) >= 20 else "medium" if len(posts) >= 10 else "low",
-        "actors_used": ["apify/instagram-profile-scraper", "apify/instagram-reel-scraper"],
-        "data_sources": ["profile", "reels"],
+        "data_sources": ["bright_data"],
     }
-
     _compute_analytics(profile)
     return profile

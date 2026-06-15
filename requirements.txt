@@ -2,6 +2,6 @@ flask
 flask-cors
 python-dotenv
 anthropic
-apify-client
+requests
 json-repair
 gunicorn
