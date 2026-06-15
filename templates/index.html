@@ -1267,50 +1267,6 @@ footer .nav-logo{text-decoration:none;}
 <script src="/static/components/BenchmarkStrip.js"></script>
 <script src="/static/components/EmailPreview.js"></script>
 <script>
-// PAYWALL
-function isPro() { return localStorage.getItem('creatoros_pro') === '1'; }
-function getAnalysesUsed() { return parseInt(localStorage.getItem('creatoros_analyses_used') || '0', 10); }
-function incrementAnalysesUsed() { localStorage.setItem('creatoros_analyses_used', String(getAnalysesUsed() + 1)); }
-function showPaywallOverlay() {
-  var card = document.getElementById('paywall-card');
-  if (card) card.classList.remove('hide');
-}
-function hidePaywallOverlay() {
-  var card = document.getElementById('paywall-card');
-  if (card) card.classList.add('hide');
-}
-function dismissPaywall() { hidePaywallOverlay(); }
-function startCheckout() {
-  var btn = document.getElementById('paywall-upgrade-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
-  fetch('/api/checkout', { method: 'POST' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok && d.url) { window.location.href = d.url; }
-      else {
-        alert('Checkout error: ' + (d.error || 'Unknown'));
-        if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
-      }
-    })
-    .catch(function(err) {
-      alert('Network error: ' + err);
-      if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
-    });
-}
-(function() {
-  var p = new URLSearchParams(window.location.search);
-  if (p.get('upgraded') === '1' && p.get('session_id')) {
-    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d.ok && d.paid) { localStorage.setItem('creatoros_pro', '1'); alert('Welcome to CreatorOS Pro!'); }
-      })
-      .finally(function() { window.history.replaceState({}, '', window.location.pathname); });
-  }
-})();
-
-</script>
-
 // ══════════════════════════════
 // STATE
 // ══════════════════════════════
@@ -2144,6 +2100,41 @@ function fmtNum(n) {
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
   return String(n);
 }
+</script>
+
+<script>
+function isPro() { return localStorage.getItem('creatoros_pro') === '1'; }
+function getAnalysesUsed() { return parseInt(localStorage.getItem('creatoros_analyses_used') || '0', 10); }
+function incrementAnalysesUsed() { localStorage.setItem('creatoros_analyses_used', String(getAnalysesUsed() + 1)); }
+function showPaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.remove('hide'); }
+function hidePaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.add('hide'); }
+function dismissPaywall() { hidePaywallOverlay(); }
+function startCheckout() {
+  var btn = document.getElementById('paywall-upgrade-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
+  fetch('/api/checkout', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok && d.url) { window.location.href = d.url; }
+      else {
+        alert('Checkout error: ' + (d.error || 'Unknown'));
+        if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+      }
+    })
+    .catch(function(e) {
+      alert('Network error: ' + e);
+      if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+    });
+}
+(function() {
+  var p = new URLSearchParams(window.location.search);
+  if (p.get('upgraded') === '1' && p.get('session_id')) {
+    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.ok && d.paid) { localStorage.setItem('creatoros_pro', '1'); alert('Welcome to CreatorOS Pro!'); } })
+      .finally(function() { window.history.replaceState({}, '', window.location.pathname); });
+  }
+})();
 </script>
 </body>
 </html>
