@@ -81,7 +81,7 @@ def _compute_analytics(profile):
 
 def _fetch_bright_data(username, api_key):
     profile_url = f"https://www.instagram.com/{username}"
-    endpoint = f"{BRIGHT_DATA_BASE}/scrape?dataset_id={BRIGHT_DATA_DATASET}&format=json&include_errors=true"
+    endpoint = f"{BRIGHT_DATA_BASE}/scrape?dataset_id={BRIGHT_DATA_PROFILE_DS}&format=json&include_errors=true"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     resp = requests.post(endpoint, json=[{"url": profile_url}], headers=headers, timeout=45)
     resp.raise_for_status()
