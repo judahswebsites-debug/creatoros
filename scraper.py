@@ -96,55 +96,24 @@ def _bright_data_headers(api_key: str) -> dict:
     return {"Authorization": f"Bearer {api_key}"}
 
 
-def _trigger_collection(username: str, api_key: str) -> str:
-    url = f"{BRIGHT_DATA_BASE}/trigger"
+
+def _scrape_sync(username: str, api_key: str) -> list:
+    url = f"{BRIGHT_DATA_BASE}/scrape"
     params = {"dataset_id": BRIGHT_DATA_DATASET_ID, "include_errors": "true"}
-    payload = [{"url": f"https://www.instagram.com/{username}/", "identifier": username}]
-    resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=30)
+    payload = {"input": [{"url": f"https://www.instagram.com/{username}/"}]}
+    resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=120)
     resp.raise_for_status()
     data = resp.json()
-    snapshot_id = data.get("snapshot_id")
-    if not snapshot_id:
-        raise ValueError(f"Bright Data trigger did not return snapshot_id: {data}")
-    return snapshot_id
-
-
-def _poll_until_ready(snapshot_id: str, api_key: str, poll_interval: int = 5, timeout: int = 300) -> None:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        resp = requests.get(
-            f"{BRIGHT_DATA_BASE}/progress/{snapshot_id}",
-            headers=_bright_data_headers(api_key),
-            timeout=15,
-        )
-        resp.raise_for_status()
-        status = resp.json().get("status", "")
-        if status == "ready":
-            return
-        if status in ("failed", "error"):
-            raise RuntimeError(f"Bright Data snapshot {snapshot_id} failed with status: {status}")
-        time.sleep(poll_interval)
-    raise TimeoutError(f"Bright Data snapshot {snapshot_id} not ready after {timeout}s")
-
-
-def _download_snapshot(snapshot_id: str, api_key: str) -> list:
-    resp = requests.get(
-        f"{BRIGHT_DATA_BASE}/snapshot/{snapshot_id}",
-        params={"format": "json"},
-        headers=_bright_data_headers(api_key),
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    if isinstance(data, list):
+        return data
+    return data.get("results", data.get("data", []))
 
 
 def scrape_profile(username: str, api_key=None) -> Profile:
     api_key = api_key or os.getenv("BRIGHT_DATA_API_KEY", "")
     if not api_key:
         raise ValueError("BRIGHT_DATA_API_KEY is not set")
-    snapshot_id = _trigger_collection(username, api_key)
-    _poll_until_ready(snapshot_id, api_key)
-    items = _download_snapshot(snapshot_id, api_key)
+    items = _scrape_sync(username, api_key)
     profile = Profile(username=username)
     posts: list[Post] = []
     profile_data = None
