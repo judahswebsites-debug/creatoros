@@ -1263,7 +1263,10 @@ footer .nav-logo{text-decoration:none;}
 </div>
 
 <!-- Scripts -->
-<script src="/static/components/DemoHook.js">
+<script src="/static/components/DemoHook.js"><script src="/static/components/AhaMomentCard.js"></script>
+<script src="/static/components/BenchmarkStrip.js"></script>
+<script src="/static/components/EmailPreview.js"></script>
+<script>
 // PAYWALL
 function isPro() { return localStorage.getItem('creatoros_pro') === '1'; }
 function getAnalysesUsed() { return parseInt(localStorage.getItem('creatoros_analyses_used') || '0', 10); }
@@ -1307,10 +1310,7 @@ function startCheckout() {
 })();
 
 </script>
-<script src="/static/components/AhaMomentCard.js"></script>
-<script src="/static/components/BenchmarkStrip.js"></script>
-<script src="/static/components/EmailPreview.js"></script>
-<script>
+
 // ══════════════════════════════
 // STATE
 // ══════════════════════════════
