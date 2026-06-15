@@ -99,7 +99,7 @@ def _bright_data_headers(api_key: str) -> dict:
 def _trigger_collection(username: str, api_key: str) -> str:
     url = f"{BRIGHT_DATA_BASE}/trigger"
     params = {"dataset_id": BRIGHT_DATA_DATASET_ID, "include_errors": "true"}
-    payload = [{"url": f"https://www.instagram.com/{username}/"}]
+    payload = [{"url": f"https://www.instagram.com/{username}/", "identifier": username}]
     resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=30)
     resp.raise_for_status()
     data = resp.json()
