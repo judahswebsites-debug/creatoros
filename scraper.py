@@ -7,7 +7,7 @@ from datetime import datetime
 
 BRIGHT_DATA_BASE    = "https://api.brightdata.com/datasets/v3"
 BRIGHT_DATA_PROFILE_DS = os.getenv("BRIGHT_DATA_DATASET_ID", "gd_l1vikfch901nx3by4")
-BRIGHT_DATA_POSTS_DS   = "gd_lk5ns7kz21pck8jpis"
+BRIGHT_DATA_POSTS_DS   = "gd_lyclm20il4r5helnj"
 
 @dataclass
 class Post:
