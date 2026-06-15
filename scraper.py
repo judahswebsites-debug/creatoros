@@ -97,23 +97,47 @@ def _bright_data_headers(api_key: str) -> dict:
 
 
 
-def _scrape_sync(username: str, api_key: str) -> list:
+def _scrape_and_wait(username: str, api_key: str) -> list:
     url = f"{BRIGHT_DATA_BASE}/scrape"
     params = {"dataset_id": BRIGHT_DATA_DATASET_ID, "include_errors": "true"}
     payload = {"input": [{"url": f"https://www.instagram.com/{username}/"}]}
-    resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=120)
+    resp = requests.post(url, params=params, json=payload, headers=_bright_data_headers(api_key), timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    if isinstance(data, list):
+    # Synchronous response — data returned directly
+    if isinstance(data, list) and data:
         return data
-    return data.get("results", data.get("data", []))
+    # Async response — poll until ready
+    snapshot_id = None
+    if isinstance(data, dict):
+        snapshot_id = data.get("snapshot_id")
+    if not snapshot_id:
+        raise ValueError(f"No snapshot_id in response: {data}")
+    deadline = time.time() + 300
+    while time.time() < deadline:
+        r = requests.get(f"{BRIGHT_DATA_BASE}/progress/{snapshot_id}",
+                         headers=_bright_data_headers(api_key), timeout=15)
+        r.raise_for_status()
+        status = r.json().get("status", "")
+        if status == "ready":
+            break
+        if status in ("failed", "error"):
+            raise RuntimeError(f"Snapshot {snapshot_id} failed")
+        time.sleep(5)
+    else:
+        raise TimeoutError(f"Snapshot {snapshot_id} not ready after 300s")
+    r = requests.get(f"{BRIGHT_DATA_BASE}/snapshot/{snapshot_id}",
+                     params={"format": "json"},
+                     headers=_bright_data_headers(api_key), timeout=60)
+    r.raise_for_status()
+    return r.json()
 
 
 def scrape_profile(username: str, api_key=None) -> Profile:
     api_key = api_key or os.getenv("BRIGHT_DATA_API_KEY", "")
     if not api_key:
         raise ValueError("BRIGHT_DATA_API_KEY is not set")
-    items = _scrape_sync(username, api_key)
+    items = _scrape_and_wait(username, api_key)
     profile = Profile(username=username)
     posts: list[Post] = []
     profile_data = None
