@@ -108,6 +108,9 @@ def _scrape_and_wait(username: str, api_key: str) -> list:
     if isinstance(data, list) and data:
         return data
     # Async response — poll until ready
+    # Check if data came back directly as a list (sync mode)
+    if isinstance(data, list) and data:
+        return data
     snapshot_id = None
     if isinstance(data, dict):
         snapshot_id = data.get("snapshot_id")
