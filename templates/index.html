@@ -221,7 +221,8 @@ footer .nav-logo{text-decoration:none;}
 .loading-h{font-size:22px;font-weight:700;color:var(--t2);margin-bottom:4px;}
 .loading-h span{font-family:'Fira Code',monospace;}
 .loading-h .grad-text{font-weight:900;}
-.loading-bar-wrap{height:4px;background:var(--b1);border-radius:2px;overflow:hidden;margin:20px 0 28px;}
+.loading-eta{color:var(--t3);font-size:13px;letter-spacing:.01em;margin-top:6px;transition:color .3s;}
+.loading-bar-wrap{height:4px;background:var(--b1);border-radius:2px;overflow:hidden;margin:16px 0 28px;}
 .loading-bar{height:100%;background:var(--grad);border-radius:2px;width:4%;transition:width .4s ease;}
 .loading-steps{display:flex;flex-direction:column;gap:14px;text-align:left;}
 .loading-step{display:flex;align-items:center;gap:12px;}
@@ -941,6 +942,7 @@ footer .nav-logo{text-decoration:none;}
       <span class="nav-wordmark">CreatorOS</span>
     </div>
     <div class="loading-h">Analyzing <span id="loading-username" class="grad-text">@username</span></div>
+    <div class="loading-eta" id="loading-eta" role="status" aria-live="polite">Usually ready in about 30 seconds</div>
     <div class="loading-bar-wrap">
       <div class="loading-bar" id="loading-bar"></div>
     </div>
@@ -1398,11 +1400,19 @@ function updateLoadingForStatus(status) {
   // Drive the real loading steps from backend job status
   if (status === 'scraping' || status === 'queued') {
     setStep(0, 'done'); setStep(1, 'active');
+    setLoadingEta('Pulling your live posts & Reels…');
   } else if (status === 'analyzing_overview') {
     setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'active');
+    setLoadingEta('Analyzing your data with AI — almost there…');
   } else if (status === 'overview_ready' || status === 'complete') {
     for (var i = 0; i < 4; i++) setStep(i, 'done');
+    setLoadingEta('Done — opening your growth report');
   }
+}
+
+function setLoadingEta(text) {
+  var el = document.getElementById('loading-eta');
+  if (el && el.textContent !== text) el.textContent = text;
 }
 
 function markDeepLoading() {
@@ -1428,6 +1438,7 @@ function startLoadingAnimation() {
   var bar = document.getElementById('loading-bar');
   var progress = 4;
   bar.style.width = progress + '%';
+  setLoadingEta('Usually ready in about 30 seconds');
 
   var step = 0;
   setStep(0, 'active');
