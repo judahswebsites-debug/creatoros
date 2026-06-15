@@ -152,7 +152,7 @@ def debug_scrape():
     for ds_name, ds_id in [("profile", "gd_l1vikfch901nx3by4"), ("reels", "gd_lyclm20il4r5helnj")]:
         try:
             r = _req.post(f"{base}?dataset_id={ds_id}&format=json&include_errors=true",
-                         json=[{"url": ig_url, "num_of_posts": 5}],
+                         json=[{"url": ig_url}],
                          headers=headers, timeout=60)
             data = r.json()
             if isinstance(data, list) and data:
