@@ -1368,7 +1368,8 @@ function pollJob(jobId) {
         }
 
         // First paint: render the overview the moment it is ready
-        if ((s.status === 'overview_ready' || s.status === 'complete') && !G._overviewShown && s.data) {
+        var isDeepPhase = (s.status === 'deep_phase1' || s.status === 'deep_phase2');
+        if ((s.status === 'overview_ready' || isDeepPhase || s.status === 'complete') && !G._overviewShown && s.data) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
@@ -1381,7 +1382,14 @@ function pollJob(jobId) {
           });
         }
 
-        // Deep modules done: fill them in without touching the overview
+        // Progressive deep phases: render whatever sections are ready
+        if (isDeepPhase && G._overviewShown && s.data) {
+          G.data = s.data;
+          G.analysisData = s.data;
+          buildDeep(s.data);
+        }
+
+        // All deep modules done
         if (s.status === 'complete' && s.data) {
           clearInterval(G._jobPoll);
           G.data = s.data;
@@ -1409,7 +1417,7 @@ function updateLoadingForStatus(status) {
     setStep(0, 'done'); setStep(1, 'active');
   } else if (status === 'analyzing_overview') {
     setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'active');
-  } else if (status === 'overview_ready' || status === 'complete') {
+  } else if (status === 'overview_ready' || status === 'deep_phase1' || status === 'deep_phase2' || status === 'complete') {
     for (var i = 0; i < 4; i++) setStep(i, 'done');
   }
 }
@@ -1667,36 +1675,36 @@ function buildDashboard(d) {
 // Deep modules — rendered separately so they can stream in after the
 // overview is already on screen (without re-animating the score ring).
 function buildDeep(d) {
-  // Forecast
-  var forecast = d.follower_forecast || {};
-  var forecastEl = document.getElementById('chart-forecast');
-  if (forecastEl) {
-    forecastEl.innerHTML = '';
-    [
-      { label: '3 Months', val: fmtNum(forecast.three_months || 0) },
-      { label: '6 Months', val: fmtNum(forecast.six_months || 0) },
-      { label: '12 Months', val: fmtNum(forecast.twelve_months || 0) },
-    ].forEach(function(f) {
-      forecastEl.innerHTML += '<div class="forecast-box"><div class="forecast-label">' + f.label + '</div><div class="forecast-val fira">' + f.val + '</div></div>';
-    });
+  if (d.follower_forecast) {
+    var forecast = d.follower_forecast;
+    var forecastEl = document.getElementById('chart-forecast');
+    if (forecastEl) {
+      forecastEl.innerHTML = '';
+      [
+        { label: '3 Months', val: fmtNum(forecast.three_months || 0) },
+        { label: '6 Months', val: fmtNum(forecast.six_months || 0) },
+        { label: '12 Months', val: fmtNum(forecast.twelve_months || 0) },
+      ].forEach(function(f) {
+        forecastEl.innerHTML += '<div class="forecast-box"><div class="forecast-label">' + f.label + '</div><div class="forecast-val fira">' + f.val + '</div></div>';
+      });
+    }
   }
-
-  // Content pillars
-  var pillarsList = document.getElementById('pillars-list');
-  if (pillarsList) {
-    pillarsList.innerHTML = '';
-    (d.content_pillars || []).forEach(function(p) {
-      var pct = p.verdict === 'Strong' ? 85 : p.verdict === 'Growing' ? 55 : 25;
-      var color = p.verdict === 'Strong' ? '#34d399' : p.verdict === 'Growing' ? '#818cf8' : '#f87171';
-      pillarsList.innerHTML += '<div class="pillar-card"><div class="pillar-name">' + p.name + '</div><div class="pillar-bar-wrap"><div class="mini-bar"><div class="mini-bar-fill" style="background:' + color + ';width:' + pct + '%" ></div></div></div><div class="pillar-views fira">' + p.avg_views + '</div><div class="pillar-verdict ' + p.verdict + '">' + p.verdict + '</div></div>';
-    });
+  if (d.content_pillars) {
+    var pillarsList = document.getElementById('pillars-list');
+    if (pillarsList) {
+      pillarsList.innerHTML = '';
+      d.content_pillars.forEach(function(p) {
+        var pct = p.verdict === 'Strong' ? 85 : p.verdict === 'Growing' ? 55 : 25;
+        var color = p.verdict === 'Strong' ? '#34d399' : p.verdict === 'Growing' ? '#818cf8' : '#f87171';
+        pillarsList.innerHTML += '<div class="pillar-card"><div class="pillar-name">' + p.name + '</div><div class="pillar-bar-wrap"><div class="mini-bar"><div class="mini-bar-fill" style="background:' + color + ';width:' + pct + '%" ></div></div></div><div class="pillar-views fira">' + p.avg_views + '</div><div class="pillar-verdict ' + p.verdict + '">' + p.verdict + '</div></div>';
+      });
+    }
   }
-
-  buildViralPatterns(d.viral_patterns || {});
-  buildTactics(d.top_tactics || []);
-  buildBlueprints(d.video_blueprints || []);
-  buildTrends(d.trend_opportunities || []);
-  buildMonetization(d);
+  if (d.viral_patterns) buildViralPatterns(d.viral_patterns);
+  if (d.top_tactics) buildTactics(d.top_tactics);
+  if (d.video_blueprints) buildBlueprints(d.video_blueprints);
+  if (d.trend_opportunities) buildTrends(d.trend_opportunities);
+  if (d.monetization) buildMonetization(d);
 }
 
 // ══════════════════════════════

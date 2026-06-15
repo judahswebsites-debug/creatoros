@@ -12,7 +12,7 @@ load_dotenv()
 
 from demo_routes import demo_bp
 from scraper import scrape_profile
-from analyzer import analyze_profile, analyze_overview, analyze_deep, chat_with_context
+from analyzer import analyze_profile, analyze_overview, analyze_deep, analyze_deep_phase1, analyze_deep_phase2, analyze_deep_phase3, chat_with_context
 
 app = Flask(__name__)
 CORS(app)
@@ -111,15 +111,30 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
         overview["profile"] = profile_dict
         _job_set(job_id, "overview_ready", data=overview)
 
-        # Deep modules — runs in this thread, free of any request timeout.
-        deep = analyze_deep(profile, api_key, overview=overview)
+        # Deep modules — 3 phased calls so frontend can render progressively.
         merged = dict(overview)
-        if deep.get("ok"):
-            for k, v in deep.items():
+        merged["profile"] = profile_dict
+
+        phase1 = analyze_deep_phase1(profile, api_key, overview=overview)
+        if phase1.get("ok"):
+            for k, v in phase1.items():
                 if k != "ok":
                     merged[k] = v
-        merged["profile"] = profile_dict
-        merged["deep_ok"] = bool(deep.get("ok"))
+        _job_set(job_id, "deep_phase1", data=merged)
+
+        phase2 = analyze_deep_phase2(profile, api_key, overview=overview)
+        if phase2.get("ok"):
+            for k, v in phase2.items():
+                if k != "ok":
+                    merged[k] = v
+        _job_set(job_id, "deep_phase2", data=merged)
+
+        phase3 = analyze_deep_phase3(profile, api_key, overview=overview)
+        if phase3.get("ok"):
+            for k, v in phase3.items():
+                if k != "ok":
+                    merged[k] = v
+        merged["deep_ok"] = True
         _analysis_cache[username.lower()] = merged
         _job_set(job_id, "complete", data=merged)
     except Exception as e:

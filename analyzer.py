@@ -357,3 +357,109 @@ FORMATTING RULES — follow these exactly:
         return resp.content[0].text
     except Exception as e:
         return f"Sorry, I couldn't process that: {e}"
+
+
+def _ctx(overview):
+    if not overview:
+        return ""
+    return f"\nEarlier snapshot (stay consistent):\n{json.dumps({k: overview.get(k) for k in ('overall_score', 'bottleneck', 'analytics') if overview.get(k)}, indent=2)}\n"
+
+
+def analyze_deep_phase1(profile, api_key=None, overview=None) -> dict:
+    """Phase 1: content pillars + viral patterns."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY content pillars and viral patterns as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "content_pillars": [
+    {{"name": "<pillar name>", "avg_views": "<e.g. 32K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 18K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 9K>", "verdict": "<Strong|Growing|Weak>"}}
+  ],
+  "viral_patterns": {{
+    "what_works": [
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it works>", "action": "<do more>"}},
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it works>", "action": "<do more>"}}
+    ],
+    "what_doesnt": [
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}},
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}}
+    ]
+  }}
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=1000)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def analyze_deep_phase2(profile, api_key=None, overview=None) -> dict:
+    """Phase 2: top tactics + video blueprints."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY growth tactics and video blueprints as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "top_tactics": [
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 day>"}},
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 3 days>"}},
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 week>"}}
+  ],
+  "video_blueprints": [
+    {{"rank": 1, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>", "<t3>"], "predicted_views": "<80K-150K>", "saves": "<4K-7K>", "shares": "<2K-4K>", "shot_list": ["<s1>", "<s2>", "<s3>", "<s4>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]}},
+    {{"rank": 2, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>"], "predicted_views": "<50K-90K>", "saves": "<2K-4K>", "shares": "<1K-2K>", "shot_list": ["<s1>", "<s2>", "<s3>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4"]}},
+    {{"rank": 3, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>"], "predicted_views": "<30K-60K>", "saves": "<1K-3K>", "shares": "<800-1.5K>", "shot_list": ["<s1>", "<s2>", "<s3>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3"]}}
+  ]
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=2000)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def analyze_deep_phase3(profile, api_key=None, overview=None) -> dict:
+    """Phase 3: trend opportunities + monetization + follower forecast."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY trends, monetization, and follower forecast as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "trend_opportunities": [
+    {{"name": "<trend>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle>"}},
+    {{"name": "<trend>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle>"}}
+  ],
+  "monetization": {{
+    "brand_deal_score": 85,
+    "status": "<Ready to monetize|Almost ready|Building foundation>",
+    "suggested_rate": "<e.g. $500-$1,200 per post>",
+    "niches": ["<niche1>", "<niche2>"],
+    "milestone_text": "<what unlocks the next tier>"
+  }},
+  "follower_forecast": {{
+    "now": 1000,
+    "three_months": 1200,
+    "six_months": 1500,
+    "twelve_months": 2000,
+    "growth_lever": "<single most impactful action>"
+  }}
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=900)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
