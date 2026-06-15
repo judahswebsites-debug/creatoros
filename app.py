@@ -1,4 +1,5 @@
 import os
+import stripe
 import json
 import time
 import uuid
@@ -15,6 +16,7 @@ from scraper import scrape_profile
 from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context
 
 app = Flask(__name__)
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 CORS(app)
 app.register_blueprint(demo_bp)
 
@@ -488,6 +490,32 @@ View your full growth report at creatorOS.app
 Sent every Monday at 8:00 AM | CreatorOS
 """
 
+
+
+@app.route("/api/checkout", methods=["POST"])
+def checkout():
+    try:
+        session = stripe.checkout.Session.create(
+            line_items=[{"price": "price_1TijAFDpHO7O3OoqlamWVRRx", "quantity": 1}],
+            mode="subscription",
+            success_url="https://creatoros-ark3.onrender.com/?session_id={CHECKOUT_SESSION_ID}&upgraded=1",
+            cancel_url="https://creatoros-ark3.onrender.com/",
+        )
+        return jsonify({"ok": True, "url": session.url})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/verify-session")
+def verify_session():
+    session_id = request.args.get("session_id", "").strip()
+    if not session_id:
+        return jsonify({"ok": False, "error": "session_id required"}), 400
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+        paid = sess.payment_status == "paid" or sess.status == "complete"
+        return jsonify({"ok": True, "paid": paid})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
