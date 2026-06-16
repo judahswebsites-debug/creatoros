@@ -1652,12 +1652,20 @@ function closeMoreSheet() {
 // ══════════════════════════════
 // UPGRADE MODAL
 // ══════════════════════════════
-function openUpgrade() {
-  document.getElementById('upgrade-overlay').classList.add('open');
+function openPricingModal() {
+  document.getElementById('pricing-modal-overlay').classList.add('open');
 }
-function closeUpgrade() {
-  document.getElementById('upgrade-overlay').classList.remove('open');
+function closePricingModal() {
+  document.getElementById('pricing-modal-overlay').classList.remove('open');
 }
+function startMaxCheckout() {
+  fetch('/api/checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:'max'})})
+    .then(function(r){return r.json();})
+    .then(function(d){if(d.ok&&d.url)window.location.href=d.url;else alert('Checkout unavailable.');})
+    .catch(function(){alert('Checkout unavailable.');});
+}
+function openUpgrade() { openPricingModal(); }
+function closeUpgrade() { closePricingModal(); }
 
 // ══════════════════════════════
 // BUILD DASHBOARD
