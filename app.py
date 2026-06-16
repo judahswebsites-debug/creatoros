@@ -43,6 +43,10 @@ def _init_jobs_db():
             "CREATE TABLE IF NOT EXISTS jobs "
             "(id TEXT PRIMARY KEY, status TEXT, data TEXT, error TEXT, updated REAL)"
         )
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS emails "
+            "(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT, username TEXT, created REAL)"
+        )
 
 
 _init_jobs_db()
@@ -516,6 +520,22 @@ def verify_session():
         return jsonify({"ok": True, "paid": paid})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/capture-email", methods=["POST"])
+def capture_email():
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or "").strip()[:200]
+    email = (data.get("email") or "").strip()[:200]
+    username = (data.get("username") or "").strip()[:200]
+    if not email:
+        return jsonify({"ok": False, "error": "email required"}), 400
+    with _db() as c:
+        c.execute(
+            "INSERT INTO emails(name, email, username, created) VALUES(?,?,?,?)",
+            (name, email, username, time.time()),
+        )
+    return jsonify({"ok": True})
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
