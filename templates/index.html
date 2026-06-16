@@ -1648,7 +1648,11 @@ function updateLoadingForStatus(status) {
     setLoadingEta('Pulling your live posts & Reels…');
   } else if (status === 'analyzing_overview') {
     setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'active');
-  } else if (status === 'overview_ready' || status === 'deep_phase1' || status === 'deep_phase2' || status === 'complete') {
+    setLoadingEta('Running AI analysis…');
+  } else if (status === 'overview_ready') {
+    setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'done'); setStep(3, 'active');
+    setLoadingEta('Generating deep insights…');
+  } else if (status === 'deep_phase1' || status === 'deep_phase2' || status === 'complete') {
     for (var i = 0; i < 4; i++) setStep(i, 'done');
     setLoadingEta('Done — opening your growth report');
   }
@@ -1713,9 +1717,11 @@ function startLoadingAnimation() {
   G.loadingStep = 0;
   G.loadingStepInterval = setInterval(function() {
     G.loadingStep++;
-    if (G.loadingStep >= 3) {
+    // Stop at step 2 (deep analysis step stays active until deep_ready fires)
+    if (G.loadingStep >= 2) {
       clearInterval(G.loadingStepInterval);
-      setStep(3, 'active');
+      setStep(G.loadingStep - 1, 'done');
+      setStep(2, 'active');
       return;
     }
     setStep(G.loadingStep - 1, 'done');
@@ -1723,10 +1729,12 @@ function startLoadingAnimation() {
   }, 2500);
 
   G.progressInterval = setInterval(function() {
-    progress += Math.random() * 3;
-    if (progress > 95) progress = 95;
+    // Slow crawl that never reaches "done" — bar completes only when deep_ready fires
+    var cap = 75;
+    progress += Math.random() * 1.2;
+    if (progress > cap) progress = cap;
     bar.style.width = progress + '%';
-  }, 400);
+  }, 600);
 }
 
 function setStep(i, state) {
