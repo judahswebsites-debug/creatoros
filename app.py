@@ -155,15 +155,20 @@ def _cache_set_deep(username, deep_data):
 
 
 def _prerun_deep(username, profile_data, api_key, overview_data):
+    merged = {k: v for k, v in overview_data.items() if not k.startswith("_")}
     try:
-        merged = {k: v for k, v in overview_data.items() if not k.startswith("_")}
         for section_name, section_data in stream_deep_sections(profile_data, api_key, overview_data):
             merged[section_name] = section_data
         merged["deep_ok"] = True
-        _cache_set_deep(username.lower(), {k: v for k, v in merged.items() if not k.startswith("_")})
+    except Exception:
+        pass
+    clean = {k: v for k, v in merged.items() if not k.startswith("_")}
+    try:
+        _cache_set_deep(username.lower(), clean)
         _analysis_cache[username.lower()] = merged
     except Exception:
         pass
+    return clean
 
 
 def _run_analysis_job(job_id, username, api_key, apify_token):
