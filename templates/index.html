@@ -1125,12 +1125,8 @@ footer .nav-logo{text-decoration:none;}
 
         <div class="chip-row anim-3" id="chip-row"></div>
 
-        <!-- Growth chart -->
-        <div class="chart-card anim-4" id="chart-card">
-          <div class="chart-title">Engagement Overview</div>
-          <div id="overview-engagement-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;"></div>
-          <div class="chart-forecast" id="chart-forecast"></div>
-        </div>
+        <!-- Follower forecast -->
+        <div class="chart-forecast anim-4" id="chart-forecast" style="margin-bottom:20px;"></div>
 
         <!-- Content pillars -->
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;" class="anim-4">Content Pillars</h3>
@@ -1933,31 +1929,6 @@ function buildDashboard(d) {
   if (nbp.best_time && nbp.best_day) {
     chipRow.innerHTML += '<div class="chip"><strong>Peak Time:</strong> ' + nbp.best_day + ' at ' + nbp.best_time + '</div>';
   }
-
-  // Chart
-  (function() {
-    var og = document.getElementById('overview-engagement-stats');
-    if (og && d) {
-      var analytics = d.analytics || {};
-      var profile = d.profile || {};
-      var trendMap = {growing: '📈 Growing', stable: '➡️ Stable', declining: '📉 Declining'};
-      var er = analytics.avg_engagement_rate || profile.avg_engagement_rate;
-      var erStr = er ? (String(er).includes('%') ? er : er + '%') : '—';
-      var stats = [
-        { label: 'Engagement Rate', val: erStr },
-        { label: 'Trend', val: trendMap[profile.engagement_trend] || profile.engagement_trend || '—' },
-        { label: 'Best Posting Day', val: (analytics.best_posting_days && analytics.best_posting_days[0]) || '—' },
-        { label: 'Top Format', val: analytics.top_format || '—' },
-      ];
-      og.innerHTML = '';
-      stats.forEach(function(s) {
-        og.innerHTML += '<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:14px 16px;">'
-          + '<div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:4px;">' + s.val + '</div>'
-          + '<div style="font-size:12px;color:#8888aa;">' + s.label + '</div>'
-          + '</div>';
-      });
-    }
-  })();
 
   // Deep modules (only render when present; skeletons show otherwise)
   if (d.content_pillars || d.viral_patterns || d.video_blueprints || d.monetization) {
