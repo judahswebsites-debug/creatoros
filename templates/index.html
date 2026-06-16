@@ -1196,7 +1196,9 @@ footer .nav-logo{text-decoration:none;}
         <h2 style="font-size:20px;font-weight:800;margin-bottom:16px;">Analytics</h2>
         <div class="chart-card" style="margin-bottom:20px;" id="engagement-trend-card">
           <div class="chart-title">Engagement Overview</div>
-          <div id="engagement-stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;"></div>
+          <div id="engagement-stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;margin-bottom:20px;"></div>
+          <div class="chart-title" style="margin-top:8px;margin-bottom:12px;">Content Pillar Performance</div>
+          <div id="post-engagement-chart"></div>
         </div>
         <div id="benchmark-strip-mount" style="margin-bottom:20px;"></div>
         <div id="aha-moment-mount" style="margin-bottom:20px;"></div>
@@ -1782,6 +1784,7 @@ function switchSection(name, clickedEl) {
       onCtaClick: function(rec) { alert('Applying: ' + rec.headline); }
     });
     buildEngagementStats(G.data);
+    buildPostEngagementChart(G.data);
   }
 }
 
@@ -2074,6 +2077,45 @@ function buildEngagementStats(d) {
       + '<div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:4px;">' + s.val + '</div>'
       + '<div style="font-size:12px;color:#8888aa;">' + s.label + '</div>'
       + '</div>';
+  });
+}
+
+// ══════════════════════════════
+// CONTENT PILLAR CHART
+// ══════════════════════════════
+function buildPostEngagementChart(d) {
+  var el = document.getElementById('post-engagement-chart');
+  if (!el) return;
+  var pillars = (d && d.content_pillars) || [];
+  if (!pillars.length) {
+    el.innerHTML = '<div style="color:#8888aa;font-size:13px;padding:8px 0;">Content pillar data not yet available.</div>';
+    return;
+  }
+  function parseViews(v) {
+    if (!v) return 0;
+    var s = String(v).replace(/,/g, '').toUpperCase();
+    var m = s.match(/([\d.]+)\s*K/);
+    if (m) return parseFloat(m[1]) * 1000;
+    m = s.match(/([\d.]+)\s*M/);
+    if (m) return parseFloat(m[1]) * 1000000;
+    return parseFloat(s) || 0;
+  }
+  var verdictColor = { Strong: '#34d399', Growing: '#818cf8', Weak: '#f87171' };
+  var maxViews = Math.max.apply(null, pillars.map(function(p){return parseViews(p.avg_views);})) || 1;
+  el.innerHTML = '';
+  pillars.forEach(function(p) {
+    var pct = Math.max(6, (parseViews(p.avg_views) / maxViews) * 100);
+    var color = verdictColor[p.verdict] || '#818cf8';
+    el.innerHTML +=
+      '<div style="margin-bottom:14px;">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">' +
+          '<span style="font-size:13px;font-weight:600;color:#e0e0f0;">' + (p.name || '') + '</span>' +
+          '<span style="font-size:12px;color:' + color + ';font-weight:700;">' + (p.verdict || '') + ' · ' + (p.avg_views || '—') + ' avg</span>' +
+        '</div>' +
+        '<div style="background:rgba(255,255,255,.07);border-radius:6px;height:10px;overflow:hidden;">' +
+          '<div style="width:' + pct + '%;height:100%;border-radius:6px;background:' + color + ';transition:width .6s ease;"></div>' +
+        '</div>' +
+      '</div>';
   });
 }
 
