@@ -302,8 +302,13 @@ def analyze_start():
         cached = _cache_get(username)
         if cached and cached.get("overview"):
             job_id = uuid.uuid4().hex
-            _job_set(job_id, "overview_ready", data=cached["overview"])
+            overview = cached["overview"]
+            _job_set(job_id, "overview_ready", data=overview)
             age_hours = round((time.time() - cached["analyzed_at"]) / 3600, 1)
+            if not cached.get("deep"):
+                profile_data = overview.get("_profile_data")
+                if profile_data:
+                    threading.Thread(target=_prerun_deep, args=(username, profile_data, api_key, overview), daemon=True).start()
             return jsonify({"ok": True, "job_id": job_id, "cached": True, "cache_age_hours": age_hours})
 
     job_id = uuid.uuid4().hex
