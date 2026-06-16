@@ -191,8 +191,8 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
         from analyzer import _profile_data as _pd
         profile_data = _pd(profile)
         overview["_profile_data"] = profile_data
-        threading.Thread(target=_prerun_deep, args=(username, profile_data, api_key, overview), daemon=True).start()
-        # Deep analysis handled by SSE /api/analyze/stream-deep/<job_id>
+        _prerun_deep(username, profile_data, api_key, overview)
+        _job_set(job_id, "deep_ready", data=overview)
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
 
