@@ -357,3 +357,182 @@ FORMATTING RULES — follow these exactly:
         return resp.content[0].text
     except Exception as e:
         return f"Sorry, I couldn't process that: {e}"
+
+
+
+
+_STREAM_SECTIONS = [
+    ("content_pillars",    '[{"name":"<pillar>","avg_views":"<32K>","verdict":"<Strong|Growing|Weak>"},{"name":"<pillar>","avg_views":"<18K>","verdict":"<Strong|Growing|Weak>"},{"name":"<pillar>","avg_views":"<9K>","verdict":"<Strong|Growing|Weak>"}]'),
+    ("viral_patterns",     '{"what_works":[{"headline":"<p>","value":"<stat>","description":"<why>","action":"<do>"},{"headline":"<p>","value":"<stat>","description":"<why>","action":"<do>"}],"what_doesnt":[{"headline":"<p>","value":"<stat>","description":"<why>","action":"<pivot>"},{"headline":"<p>","value":"<stat>","description":"<why>","action":"<pivot>"}]}'),
+    ("top_tactics",        '[{"name":"<tactic>","impact":"<1 sentence>","difficulty":"<Easy|Medium|Hard>","time_to_implement":"<1 day>"},{"name":"<tactic>","impact":"<1 sentence>","difficulty":"<Easy|Medium|Hard>","time_to_implement":"<3 days>"},{"name":"<tactic>","impact":"<1 sentence>","difficulty":"<Easy|Medium|Hard>","time_to_implement":"<1 week>"}]'),
+    ("video_blueprints",   '[{"rank":1,"title":"<t>","hook":"<h>","why":"<1 sentence>","tags":["<t1>","<t2>","<t3>"],"predicted_views":"<80K-150K>","saves":"<4K-7K>","shares":"<2K-4K>","caption":"<under 25 words>","hashtags":["#tag1","#tag2","#tag3","#tag4","#tag5"]},{"rank":2,"title":"<t>","hook":"<h>","why":"<1 sentence>","tags":["<t1>","<t2>"],"predicted_views":"<50K-90K>","saves":"<2K-4K>","shares":"<1K-2K>","caption":"<under 25 words>","hashtags":["#tag1","#tag2","#tag3","#tag4"]},{"rank":3,"title":"<t>","hook":"<h>","why":"<1 sentence>","tags":["<t1>","<t2>"],"predicted_views":"<30K-60K>","saves":"<1K-3K>","shares":"<800-1.5K>","caption":"<under 25 words>","hashtags":["#tag1","#tag2","#tag3"]}]'),
+    ("trend_opportunities",'[{"name":"<trend>","urgency":"<Hot|Rising|Evergreen>","emoji":"<e>","why":"<why>","your_angle":"<angle>"},{"name":"<trend>","urgency":"<Hot|Rising|Evergreen>","emoji":"<e>","why":"<why>","your_angle":"<angle>"}]'),
+    ("follower_forecast",  '{"now":<followers int>,"three_months":<int>,"six_months":<int>,"twelve_months":<int>,"growth_lever":"<single most impactful action>"}'),
+    ("monetization",       '{"brand_deal_score":85,"status":"<Ready to monetize|Almost ready|Building foundation>","suggested_rate":"<$500-$1,200 per post>","niches":["<niche1>","<niche2>"],"milestone_text":"<what unlocks next tier>"}'),
+]
+
+
+def stream_deep_sections(profile_data: dict, api_key=None, overview=None):
+    """Generator yielding (section_name, parsed_data) as Claude streams — true token streaming."""
+    ctx = _ctx(overview) if overview else ""
+    sections_fmt = "\n".join(f"---{name}---\n{schema}" for name, schema in _STREAM_SECTIONS)
+    prompt = f"""Analyze this Instagram account. Output EVERY section in exact order using the delimiter format. Replace schema placeholders with real data. Each value must be valid JSON.
+{ctx}
+Account Data:
+{json.dumps(profile_data, indent=2)}
+
+Output format:
+{sections_fmt}
+---done---"""
+
+    key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+    client = Anthropic(api_key=key)
+    section_names = [name for name, _ in _STREAM_SECTIONS]
+    buffer = ""
+    current_section = None
+    section_buffer = ""
+
+    def _find_marker(text):
+        best_idx, best_name = -1, None
+        for name in section_names + ["done"]:
+            marker = f"---{name}---"
+            idx = text.find(marker)
+            if idx >= 0 and (best_idx < 0 or idx < best_idx):
+                best_idx, best_name = idx, name
+        return best_name, best_idx
+
+    try:
+        with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            for chunk in stream.text_stream:
+                buffer += chunk
+                while True:
+                    marker_name, marker_idx = _find_marker(buffer)
+                    if marker_name is None:
+                        if current_section and len(buffer) > 20:
+                            section_buffer += buffer[:-20]
+                            buffer = buffer[-20:]
+                        break
+                    if current_section is not None:
+                        section_json = (section_buffer + buffer[:marker_idx]).strip()
+                        try:
+                            section_data = json.loads(repair_json(section_json))
+                            yield current_section, section_data
+                        except Exception:
+                            pass
+                        section_buffer = ""
+                    if marker_name == "done":
+                        return
+                    current_section = marker_name
+                    buffer = buffer[marker_idx + len(f"---{marker_name}---"):]
+    except Exception:
+        return
+
+def _ctx(overview):
+    if not overview:
+        return ""
+    return f"\nEarlier snapshot (stay consistent):\n{json.dumps({k: overview.get(k) for k in ('overall_score', 'bottleneck', 'analytics') if overview.get(k)}, indent=2)}\n"
+
+
+def analyze_deep_phase1(profile, api_key=None, overview=None) -> dict:
+    """Phase 1: content pillars + viral patterns."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY content pillars and viral patterns as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "content_pillars": [
+    {{"name": "<pillar name>", "avg_views": "<e.g. 32K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 18K>", "verdict": "<Strong|Growing|Weak>"}},
+    {{"name": "<pillar name>", "avg_views": "<e.g. 9K>", "verdict": "<Strong|Growing|Weak>"}}
+  ],
+  "viral_patterns": {{
+    "what_works": [
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it works>", "action": "<do more>"}},
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it works>", "action": "<do more>"}}
+    ],
+    "what_doesnt": [
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}},
+      {{"headline": "<pattern>", "value": "<stat>", "description": "<why it fails>", "action": "<stop or pivot>"}}
+    ]
+  }}
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=1000)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def analyze_deep_phase2(profile, api_key=None, overview=None) -> dict:
+    """Phase 2: top tactics + video blueprints."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY growth tactics and video blueprints as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "top_tactics": [
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 day>"}},
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 3 days>"}},
+    {{"name": "<tactic>", "impact": "<description>", "difficulty": "<Easy|Medium|Hard>", "time_to_implement": "<e.g. 1 week>"}}
+  ],
+  "video_blueprints": [
+    {{"rank": 1, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>", "<t3>"], "predicted_views": "<80K-150K>", "saves": "<4K-7K>", "shares": "<2K-4K>", "shot_list": ["<s1>", "<s2>", "<s3>", "<s4>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]}},
+    {{"rank": 2, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>"], "predicted_views": "<50K-90K>", "saves": "<2K-4K>", "shares": "<1K-2K>", "shot_list": ["<s1>", "<s2>", "<s3>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4"]}},
+    {{"rank": 3, "title": "<title>", "hook": "<hook>", "why": "<why>", "tags": ["<t1>", "<t2>"], "predicted_views": "<30K-60K>", "saves": "<1K-3K>", "shares": "<800-1.5K>", "shot_list": ["<s1>", "<s2>", "<s3>"], "caption": "<caption>", "hashtags": ["#tag1", "#tag2", "#tag3"]}}
+  ]
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=2000)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def analyze_deep_phase3(profile, api_key=None, overview=None) -> dict:
+    """Phase 3: trend opportunities + monetization + follower forecast."""
+    pdata = _profile_data(profile)
+    prompt = f"""Analyze this Instagram account and return ONLY trends, monetization, and follower forecast as JSON.
+{_ctx(overview)}
+Account Data:
+{json.dumps(pdata, indent=2)}
+
+Return ONLY valid JSON:
+{{
+  "trend_opportunities": [
+    {{"name": "<trend>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle>"}},
+    {{"name": "<trend>", "urgency": "<Hot|Rising|Evergreen>", "emoji": "<emoji>", "why": "<why relevant>", "your_angle": "<specific angle>"}}
+  ],
+  "monetization": {{
+    "brand_deal_score": 85,
+    "status": "<Ready to monetize|Almost ready|Building foundation>",
+    "suggested_rate": "<e.g. $500-$1,200 per post>",
+    "niches": ["<niche1>", "<niche2>"],
+    "milestone_text": "<what unlocks the next tier>"
+  }},
+  "follower_forecast": {{
+    "now": 1000,
+    "three_months": 1200,
+    "six_months": 1500,
+    "twelve_months": 2000,
+    "growth_lever": "<single most impactful action>"
+  }}
+}}"""
+    try:
+        data = _call_claude_json(prompt, api_key, max_tokens=900)
+        data["ok"] = True
+        return data
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

@@ -397,7 +397,8 @@ footer .nav-logo{text-decoration:none;}
 
 /* Dashboard sections */
 .dash-section{display:none;}
-.dash-section.active{display:block;}
+.dash-section.active{display:block;animation:secFadeIn .2s ease;}
+@keyframes secFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
 /* Animations */
 @keyframes slideUp{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
@@ -576,7 +577,7 @@ footer .nav-logo{text-decoration:none;}
 .msg-ai br+br{display:none;}
 @keyframes dhBounce2{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
 .deep-skel{display:flex;flex-direction:column;gap:10px;padding:4px 0;}
-.deep-skel-line{height:46px;border-radius:10px;background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);background-size:200% 100%;animation:deepSh 1.4s infinite;}
+.deep-skel-line{height:46px;border-radius:10px;background:linear-gradient(90deg,var(--s3) 25%,var(--s4) 50%,var(--s3) 75%);background-size:200% 100%;animation:deepSh 1.4s infinite;}
 @keyframes deepSh{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .deep-loading-note{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--pu2);background:var(--pu3);border:1px solid rgba(67,56,202,.25);border-radius:20px;padding:4px 12px;margin-bottom:12px;}
 .deep-loading-note .dot{width:6px;height:6px;border-radius:50%;background:var(--pu2);animation:dhBounce2 1.2s infinite;}
@@ -724,6 +725,19 @@ footer .nav-logo{text-decoration:none;}
 .upgrade-cta:hover{box-shadow:var(--glow-pu);transform:translateY(-1px);}
 .upgrade-close-link{display:block;text-align:center;color:var(--t3);font-size:13px;cursor:pointer;}
 .upgrade-close-link:hover{color:var(--t2);}
+
+  .paywall-blur { filter: blur(8px); pointer-events: none; user-select: none; }
+  .paywall-overlay { position: relative; }
+  .paywall-card { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 100; width: 480px; max-width: 90%; background: #1e1b4b; border: 1px solid rgba(99,102,241,0.3); border-radius: 16px; padding: 2rem; text-align: center; }
+  .paywall-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+  .paywall-card p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+  .paywall-features { list-style: none; text-align: left; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding: 0; }
+  .paywall-features li { font-size: 13px; color: #94a3b8; display: flex; align-items: center; gap: 8px; }
+  .paywall-features li::before { content: "✓"; color: #34d399; font-weight: 700; }
+  .paywall-btn { width: 100%; background: linear-gradient(135deg,#6366f1,#0d9488); color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 12px; }
+  .paywall-btn:disabled { opacity: .6; cursor: not-allowed; }
+  .paywall-later { display: block; text-align: center; color: #64748b; font-size: 13px; cursor: pointer; }
+  .toast-success { position: fixed; bottom: 32px; right: 32px; background: #059669; color: #fff; padding: 12px 24px; border-radius: 10px; font-weight: 600; font-size: 14px; z-index: 9999; }
 </style>
 </head>
 <body>
@@ -739,7 +753,7 @@ footer .nav-logo{text-decoration:none;}
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#how-it-works">How It Works</a>
-    <a href="#pricing">Pricing</a>
+    <a href="#pricing" onclick="openPricingModal();return false;">Pricing</a>
   </div>
   <div class="nav-right">
     <button class="btn-ghost" onclick="focusHeroInput()">Sign In</button>
@@ -774,6 +788,7 @@ footer .nav-logo{text-decoration:none;}
         </button>
       </div>
       <div class="hero-inp-error hide" id="inp-error">Please enter an Instagram username</div>
+      <div class="hide" id="api-key-wrap" style="margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:6px;"><label style="font-size:13px;color:var(--t2);">Anthropic API Key required to run analysis</label><input type="password" id="api-key-inp" placeholder="sk-ant-..." autocomplete="off" style="background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);padding:10px 14px;color:var(--t1);font-family:'Outfit',sans-serif;font-size:14px;width:320px;max-width:90vw;"></div>
       <p class="hero-hint">Free · No signup required · Results in ~30s</p>
 
       <div class="hero-pills">
@@ -874,48 +889,37 @@ footer .nav-logo{text-decoration:none;}
   <section class="section" id="pricing" style="padding-top:0;">
     <div class="section-inner">
       <div class="section-badge">Pricing</div>
-      <h2 class="section-h2">Start free, scale when ready</h2>
-      <p class="section-sub">No credit card required to try.</p>
-      <div class="pricing-grid" style="max-width:860px;margin:0 auto;">
-        <div class="plan-card">
-          <div class="plan-name">Free</div>
-          <div class="plan-price fira">$0</div>
-          <div class="plan-desc">For creators getting started</div>
-          <ul class="plan-features">
-            <li>3 analyses per month</li>
-            <li>Overview + Score</li>
-            <li>1 Video Blueprint</li>
-            <li>Growth Agent (5 msgs)</li>
-          </ul>
-          <button class="plan-btn plan-btn-outline" onclick="focusHeroInput()">Get Started Free</button>
-        </div>
+      <h2 class="section-h2">Serious tools for serious creators</h2>
+      <p class="section-sub">Start with 1 free scan â no credit card needed. Upgrade when you're ready to grow.</p>
+      <div class="pricing-grid" style="max-width:700px;margin:0 auto;grid-template-columns:repeat(2,1fr);">
         <div class="plan-card popular">
           <div class="plan-badge">Most Popular</div>
           <div class="plan-name">Pro</div>
-          <div class="plan-price fira">$29<span>/mo</span></div>
-          <div class="plan-desc">For serious creators</div>
+          <div class="plan-price fira">$29.99<span>/mo</span></div>
+          <div class="plan-desc">For serious creators ready to grow</div>
           <ul class="plan-features">
-            <li>Unlimited analyses</li>
-            <li>All 6 modules</li>
+            <li>10 analyses per month</li>
+            <li>All 6 insight modules</li>
             <li>Competitor Intelligence</li>
-            <li>Unlimited Growth Agent</li>
-            <li>Weekly email digest</li>
+            <li>Growth Agent (20 msgs/mo)</li>
             <li>PDF export</li>
           </ul>
-          <button class="plan-btn plan-btn-grad" onclick="focusHeroInput()">Start Pro Trial</button>
+          <button class="plan-btn plan-btn-grad" onclick="startCheckout()">Start Pro Trial â</button>
         </div>
-        <div class="plan-card">
-          <div class="plan-name">Agency</div>
-          <div class="plan-price fira">$99<span>/mo</span></div>
-          <div class="plan-desc">For agencies and managers</div>
+        <div class="plan-card" style="border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.06);">
+          <div class="plan-badge" style="background:linear-gradient(135deg,#7c3aed,#a855f7);">Best Value</div>
+          <div class="plan-name">Max</div>
+          <div class="plan-price fira">$69.99<span>/mo</span></div>
+          <div class="plan-desc">For creators who want every edge</div>
           <ul class="plan-features">
-            <li>50 accounts</li>
+            <li>Unlimited analyses</li>
             <li>Everything in Pro</li>
-            <li>White-label reports</li>
-            <li>API access</li>
+            <li>Unlimited Growth Agent</li>
+            <li>Weekly email digest</li>
+            <li>White-label PDF exports</li>
             <li>Priority support</li>
           </ul>
-          <button class="plan-btn plan-btn-outline" onclick="focusHeroInput()">Contact Sales</button>
+          <button class="plan-btn plan-btn-grad" style="background:linear-gradient(135deg,#7c3aed,#a855f7);" onclick="startMaxCheckout()">Get Max â</button>
         </div>
       </div>
     </div>
@@ -1245,6 +1249,63 @@ footer .nav-logo{text-decoration:none;}
   </div>
 </div>
 
+<!-- PRICING MODAL -->
+<div class="upgrade-overlay" id="pricing-modal-overlay" onclick="closePricingModal()">
+  <div class="upgrade-modal" onclick="event.stopPropagation()" style="max-width:680px;padding:36px 32px;">
+    <button onclick="closePricingModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    <div class="upgrade-h" style="font-size:24px;margin-bottom:6px;">Choose Your Plan</div>
+    <div class="upgrade-sub" style="margin-bottom:28px;">Start with 1 free scan. Upgrade anytime.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div style="background:rgba(67,56,202,.08);border:1px solid rgba(67,56,202,.4);border-radius:16px;padding:24px 20px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--ind);text-transform:uppercase;margin-bottom:8px;">Most Popular</div>
+        <div style="font-size:22px;font-weight:700;color:var(--t1);margin-bottom:4px;">Pro</div>
+        <div style="font-size:28px;font-weight:800;color:var(--t1);margin-bottom:4px;">$29.99<span style="font-size:14px;font-weight:400;color:var(--t3);">/mo</span></div>
+        <div style="font-size:13px;color:var(--t3);margin-bottom:16px;">For serious creators ready to scale</div>
+        <ul style="list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:8px;">
+          <li style="font-size:13px;color:var(--t2);">&#10003; 10 analyses per month</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; All 6 insight modules</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Competitor Intelligence</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Growth Agent (20 msgs/mo)</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; PDF export</li>
+        </ul>
+        <button class="upgrade-cta" style="width:100%;font-size:14px;padding:11px;" onclick="startCheckout()">Start Pro Trial &#8594;</button>
+      </div>
+      <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.4);border-radius:16px;padding:24px 20px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#a855f7;text-transform:uppercase;margin-bottom:8px;">Best Value</div>
+        <div style="font-size:22px;font-weight:700;color:var(--t1);margin-bottom:4px;">Max</div>
+        <div style="font-size:28px;font-weight:800;color:var(--t1);margin-bottom:4px;">$69.99<span style="font-size:14px;font-weight:400;color:var(--t3);">/mo</span></div>
+        <div style="font-size:13px;color:var(--t3);margin-bottom:16px;">For creators who want every edge</div>
+        <ul style="list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:8px;">
+          <li style="font-size:13px;color:var(--t2);">&#10003; Unlimited analyses</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Everything in Pro</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Unlimited Growth Agent</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Weekly email digest</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; White-label PDF exports</li>
+          <li style="font-size:13px;color:var(--t2);">&#10003; Priority support</li>
+        </ul>
+        <button class="upgrade-cta" style="width:100%;font-size:14px;padding:11px;background:linear-gradient(135deg,#7c3aed,#a855f7);" onclick="startMaxCheckout()">Get Max &#8594;</button>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:12px;color:var(--t3);margin-top:16px;">Cancel anytime. Billed monthly. Secure checkout via Stripe.</p>
+  </div>
+</div>
+
+<!-- EMAIL CAPTURE MODAL -->
+<div class="upgrade-overlay" id="email-capture-overlay">
+  <div class="upgrade-modal" onclick="event.stopPropagation()" style="max-width:420px;">
+    <div class="upgrade-h" style="font-size:22px;">Almost there!</div>
+    <div class="upgrade-sub" style="margin-bottom:24px;">Enter your details to unlock your free Instagram audit report.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+      <input id="email-capture-name" type="text" placeholder="Your name" autocomplete="name"
+        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;" />
+      <input id="email-capture-email" type="email" placeholder="Your email address" autocomplete="email"
+        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;" />
+    </div>
+    <button class="upgrade-cta" id="email-capture-btn" onclick="submitEmailCapture()" style="width:100%;">Get My Free Report &#8594;</button>
+    <p style="font-size:11px;color:var(--t3);margin-top:12px;text-align:center;">No spam, ever. Unsubscribe anytime.</p>
+  </div>
+</div>
+
 <!-- UPGRADE MODAL -->
 <div class="upgrade-overlay" id="upgrade-overlay" onclick="closeUpgrade()">
   <div class="upgrade-modal" onclick="event.stopPropagation()">
@@ -1258,14 +1319,13 @@ footer .nav-logo{text-decoration:none;}
       <li>PDF export reports</li>
       <li>Priority support</li>
     </ul>
-    <button class="upgrade-cta">Upgrade to Pro — $29/mo</button>
+    <button class="upgrade-cta" onclick="startCheckout()">Upgrade to Pro — $29/mo</button>
     <a class="upgrade-close-link" onclick="closeUpgrade()">Maybe later</a>
   </div>
 </div>
 
 <!-- Scripts -->
-<script src="/static/components/DemoHook.js"></script>
-<script src="/static/components/AhaMomentCard.js"></script>
+<script src="/static/components/DemoHook.js"><script src="/static/components/AhaMomentCard.js"></script>
 <script src="/static/components/BenchmarkStrip.js"></script>
 <script src="/static/components/EmailPreview.js"></script>
 <script>
@@ -1280,6 +1340,13 @@ var G = {
   progressInterval: null,
   analyticsInited: false,
 };
+
+fetch('/api/health').then(function(r){ return r.json(); }).then(function(h){
+  if (!h.api_key_configured) {
+    var wrap = document.getElementById('api-key-wrap');
+    if (wrap) wrap.classList.remove('hide');
+  }
+}).catch(function(){});
 
 // ══════════════════════════════
 // NAV
@@ -1306,6 +1373,16 @@ function goToLanding() {
 // ANALYSIS FLOW
 // ══════════════════════════════
 function startAnalysis() {
+  if (!canRunAnalysis()) {
+    var plan = getPlan();
+    var limit = plan === 'pro' ? 10 : 1;
+    var msg = plan === 'pro'
+      ? 'You have used all ' + limit + ' analyses this month. Upgrade to Max for unlimited analyses.'
+      : 'You have already used your 1 free scan. Upgrade to Pro or Max to run more analyses.';
+    if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
+    return;
+  }
+  incrementAnalysesUsed();
   var raw = document.getElementById('main-inp').value.replace(/^@/,'').trim();
   if (!raw) {
     document.getElementById('hero-input-wrap').classList.add('error');
@@ -1320,13 +1397,15 @@ function startAnalysis() {
   document.getElementById('loading-username').textContent = '@' + raw;
   showPage('page-loading');
   startLoadingAnimation();
-
   G._overviewShown = false;
+
+  var apiKeyInp = document.getElementById('api-key-inp');
+  var apiKey = apiKeyInp ? apiKeyInp.value.trim() : '';
 
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: raw }),
+    body: JSON.stringify({ username: raw, api_key: apiKey || undefined }),
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
@@ -1338,16 +1417,86 @@ function startAnalysis() {
     }
     pollJob(d.job_id);
   })
-  .catch(function(e) {
+  .catch(function() {
     stopLoadingAnimation();
     alert('Network error. Please try again.');
     goToLanding();
   });
 }
 
+function submitEmailCapture() {
+  var name = document.getElementById('email-capture-name').value.trim();
+  var email = document.getElementById('email-capture-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
+    document.getElementById('email-capture-email').focus();
+    return;
+  }
+  var btn = document.getElementById('email-capture-btn');
+  btn.disabled = true;
+  btn.textContent = 'Loading your report…';
+
+  fetch('/api/capture-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, username: G.username }),
+  }).catch(function(){});
+
+  document.getElementById('email-capture-overlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Get My Free Report →';
+
+  document.getElementById('loading-username').textContent = '@' + G.username;
+  showPage('page-loading');
+  startLoadingAnimation();
+  G._overviewShown = false;
+
+  function waitAndPoll() {
+    if (G._pendingJobError) {
+      stopLoadingAnimation();
+      alert('Analysis failed: ' + G._pendingJobError);
+      goToLanding();
+    } else if (G._pendingJobId) {
+      pollJob(G._pendingJobId);
+    } else {
+      setTimeout(waitAndPoll, 300);
+    }
+  }
+  waitAndPoll();
+}
+
 // ══════════════════════════════
 // ASYNC JOB POLLING (score-first progressive render)
 // ══════════════════════════════
+function submitEmailCapture() {
+  var name = document.getElementById('email-capture-name').value.trim();
+  var email = document.getElementById('email-capture-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
+    document.getElementById('email-capture-email').focus();
+    return;
+  }
+  var btn = document.getElementById('email-capture-btn');
+  btn.disabled = true;
+  btn.textContent = 'Opening your report…';
+  fetch('/api/capture-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, username: G.username }),
+  }).catch(function(){});
+  document.getElementById('email-capture-overlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Get My Free Report →';
+  var jobId = G._gateJobId;
+  finishLoadingBar(function() {
+    showPage('page-results');
+    switchSection('overview', document.querySelector('[data-section=overview]'));
+  });
+  incrementAnalysesUsed();
+  markDeepLoading();
+  startDeepStream(jobId);
+}
+
 function pollJob(jobId) {
   G._pollCount = 0;
   if (G._jobPoll) clearInterval(G._jobPoll);
@@ -1374,35 +1523,35 @@ function pollJob(jobId) {
           return;
         }
 
-        // First paint: render the overview the moment it is ready
-        if ((s.status === 'overview_ready' || s.status === 'complete') && !G._overviewShown && s.data) {
+        // First paint: render overview then show email gate before results
+        if (s.status === 'overview_ready' && !G._overviewShown && s.data) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
           buildDashboard(s.data);
-          if (s.status !== 'complete') markDeepLoading();
           stopLoadingAnimation();
-          finishLoadingBar(function() {
-            showPage('page-results');
-            switchSection('overview', document.querySelector('[data-section=overview]'));
-          });
+          G._gateJobId = jobId;
+          document.getElementById('email-capture-overlay').style.display = 'flex';
+          setTimeout(function() {
+            var n = document.getElementById('email-capture-name');
+            if (n) n.focus();
+          }, 100);
         }
 
-        // Deep modules done: fill them in without touching the overview
-        if (s.status === 'complete' && s.data) {
+        // SSE stream sets job complete — polling stops
+        if (s.status === 'complete') {
           clearInterval(G._jobPoll);
-          G.data = s.data;
-          G.analysisData = s.data;
-          if (!G._overviewShown) {
+          if (!G._overviewShown && s.data) {
             G._overviewShown = true;
+            G.data = s.data;
+            G.analysisData = s.data;
             buildDashboard(s.data);
+            buildDeep(s.data);
             stopLoadingAnimation();
             finishLoadingBar(function() {
               showPage('page-results');
               switchSection('overview', document.querySelector('[data-section=overview]'));
             });
-          } else {
-            buildDeep(s.data);
           }
         }
       })
@@ -1416,7 +1565,7 @@ function updateLoadingForStatus(status) {
     setStep(0, 'done'); setStep(1, 'active');
   } else if (status === 'analyzing_overview') {
     setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'active');
-  } else if (status === 'overview_ready' || status === 'complete') {
+  } else if (status === 'overview_ready' || status === 'deep_phase1' || status === 'deep_phase2' || status === 'complete') {
     for (var i = 0; i < 4; i++) setStep(i, 'done');
   }
 }
@@ -1431,6 +1580,29 @@ function markDeepLoading() {
   if (fc) fc.innerHTML = skel;
   var gl = document.getElementById('growth-lever-text');
   if (gl) gl.innerHTML = '<span class="deep-loading-note"><span class="dot"></span> Generating deep insights…</span>';
+}
+
+function startDeepStream(jobId) {
+  if (G._deepStream) { try { G._deepStream.close(); } catch(e) {} }
+  var es = new EventSource('/api/analyze/stream-deep/' + jobId);
+  G._deepStream = es;
+  es.onmessage = function(e) {
+    try {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'section') {
+        G.data = G.data || {};
+        G.data[msg.key] = msg.data;
+        G.analysisData = G.data;
+        var partial = {};
+        partial[msg.key] = msg.data;
+        buildDeep(partial);
+      } else if (msg.type === 'done' || msg.type === 'error') {
+        es.close();
+        G._deepStream = null;
+      }
+    } catch(err) {}
+  };
+  es.onerror = function() { es.close(); G._deepStream = null; };
 }
 
 document.getElementById('main-inp').addEventListener('keydown', function(e) {
@@ -1547,12 +1719,20 @@ function closeMoreSheet() {
 // ══════════════════════════════
 // UPGRADE MODAL
 // ══════════════════════════════
-function openUpgrade() {
-  document.getElementById('upgrade-overlay').classList.add('open');
+function openPricingModal() {
+  document.getElementById('pricing-modal-overlay').classList.add('open');
 }
-function closeUpgrade() {
-  document.getElementById('upgrade-overlay').classList.remove('open');
+function closePricingModal() {
+  document.getElementById('pricing-modal-overlay').classList.remove('open');
 }
+function startMaxCheckout() {
+  fetch('/api/checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:'max'})})
+    .then(function(r){return r.json();})
+    .then(function(d){if(d.ok&&d.url)window.location.href=d.url;else alert('Checkout unavailable.');})
+    .catch(function(){alert('Checkout unavailable.');});
+}
+function openUpgrade() { openPricingModal(); }
+function closeUpgrade() { closePricingModal(); }
 
 // ══════════════════════════════
 // BUILD DASHBOARD
@@ -1674,36 +1854,36 @@ function buildDashboard(d) {
 // Deep modules — rendered separately so they can stream in after the
 // overview is already on screen (without re-animating the score ring).
 function buildDeep(d) {
-  // Forecast
-  var forecast = d.follower_forecast || {};
-  var forecastEl = document.getElementById('chart-forecast');
-  if (forecastEl) {
-    forecastEl.innerHTML = '';
-    [
-      { label: '3 Months', val: fmtNum(forecast.three_months || 0) },
-      { label: '6 Months', val: fmtNum(forecast.six_months || 0) },
-      { label: '12 Months', val: fmtNum(forecast.twelve_months || 0) },
-    ].forEach(function(f) {
-      forecastEl.innerHTML += '<div class="forecast-box"><div class="forecast-label">' + f.label + '</div><div class="forecast-val fira">' + f.val + '</div></div>';
-    });
+  if (d.follower_forecast) {
+    var forecast = d.follower_forecast;
+    var forecastEl = document.getElementById('chart-forecast');
+    if (forecastEl) {
+      forecastEl.innerHTML = '';
+      [
+        { label: '3 Months', val: fmtNum(forecast.three_months || 0) },
+        { label: '6 Months', val: fmtNum(forecast.six_months || 0) },
+        { label: '12 Months', val: fmtNum(forecast.twelve_months || 0) },
+      ].forEach(function(f) {
+        forecastEl.innerHTML += '<div class="forecast-box"><div class="forecast-label">' + f.label + '</div><div class="forecast-val fira">' + f.val + '</div></div>';
+      });
+    }
   }
-
-  // Content pillars
-  var pillarsList = document.getElementById('pillars-list');
-  if (pillarsList) {
-    pillarsList.innerHTML = '';
-    (d.content_pillars || []).forEach(function(p) {
-      var pct = p.verdict === 'Strong' ? 85 : p.verdict === 'Growing' ? 55 : 25;
-      var color = p.verdict === 'Strong' ? '#34d399' : p.verdict === 'Growing' ? '#818cf8' : '#f87171';
-      pillarsList.innerHTML += '<div class="pillar-card"><div class="pillar-name">' + p.name + '</div><div class="pillar-bar-wrap"><div class="mini-bar"><div class="mini-bar-fill" style="background:' + color + ';width:' + pct + '%" ></div></div></div><div class="pillar-views fira">' + p.avg_views + '</div><div class="pillar-verdict ' + p.verdict + '">' + p.verdict + '</div></div>';
-    });
+  if (d.content_pillars) {
+    var pillarsList = document.getElementById('pillars-list');
+    if (pillarsList) {
+      pillarsList.innerHTML = '';
+      d.content_pillars.forEach(function(p) {
+        var pct = p.verdict === 'Strong' ? 85 : p.verdict === 'Growing' ? 55 : 25;
+        var color = p.verdict === 'Strong' ? '#34d399' : p.verdict === 'Growing' ? '#818cf8' : '#f87171';
+        pillarsList.innerHTML += '<div class="pillar-card"><div class="pillar-name">' + p.name + '</div><div class="pillar-bar-wrap"><div class="mini-bar"><div class="mini-bar-fill" style="background:' + color + ';width:' + pct + '%" ></div></div></div><div class="pillar-views fira">' + p.avg_views + '</div><div class="pillar-verdict ' + p.verdict + '">' + p.verdict + '</div></div>';
+      });
+    }
   }
-
-  buildViralPatterns(d.viral_patterns || {});
-  buildTactics(d.top_tactics || []);
-  buildBlueprints(d.video_blueprints || []);
-  buildTrends(d.trend_opportunities || []);
-  buildMonetization(d);
+  if (d.viral_patterns) buildViralPatterns(d.viral_patterns);
+  if (d.top_tactics) buildTactics(d.top_tactics);
+  if (d.video_blueprints) buildBlueprints(d.video_blueprints);
+  if (d.trend_opportunities) buildTrends(d.trend_opportunities);
+  if (d.monetization) buildMonetization(d);
 }
 
 // ══════════════════════════════
@@ -1969,6 +2149,15 @@ function chatKeydown(e) {
 }
 
 function sendChat() {
+  if (!canSendAgentMsg()) {
+    var plan = getPlan();
+    var msg = plan === 'pro'
+      ? 'You have used all 20 Growth Agent messages this month. Upgrade to Max for unlimited messages.'
+      : 'You have used your free Growth Agent messages. Upgrade to Pro or Max for more.';
+    if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
+    return;
+  }
+  incrementAgentMsgs();
   var inp = document.getElementById('chat-inp');
   var msg = inp.value.trim();
   if (!msg) return;
@@ -2072,6 +2261,88 @@ function fmtNum(n) {
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
   return String(n);
 }
+</script>
+
+<script>
+function getPlan() { return localStorage.getItem('creatoros_plan') || (localStorage.getItem('creatoros_pro')==='1' ? 'pro' : 'free'); }
+function isPro() { var p = getPlan(); return p === 'pro' || p === 'max'; }
+function isMax() { return getPlan() === 'max'; }
+
+function _monthKey() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function getAnalysesUsed() {
+  var mk = _monthKey();
+  if (localStorage.getItem('creatoros_analyses_month') !== mk) {
+    localStorage.setItem('creatoros_analyses_month', mk);
+    localStorage.setItem('creatoros_analyses_count', '0');
+  }
+  return parseInt(localStorage.getItem('creatoros_analyses_count') || '0', 10);
+}
+function incrementAnalysesUsed() {
+  var mk = _monthKey();
+  localStorage.setItem('creatoros_analyses_month', mk);
+  localStorage.setItem('creatoros_analyses_count', String(getAnalysesUsed() + 1));
+}
+function canRunAnalysis() {
+  var plan = getPlan();
+  if (plan === 'max') return true;
+  if (plan === 'pro') return getAnalysesUsed() < 10;
+  return getAnalysesUsed() < 1;
+}
+function getAgentMsgsUsed() {
+  var mk = _monthKey();
+  if (localStorage.getItem('creatoros_agent_month') !== mk) {
+    localStorage.setItem('creatoros_agent_month', mk);
+    localStorage.setItem('creatoros_agent_count', '0');
+  }
+  return parseInt(localStorage.getItem('creatoros_agent_count') || '0', 10);
+}
+function incrementAgentMsgs() {
+  var mk = _monthKey();
+  localStorage.setItem('creatoros_agent_month', mk);
+  localStorage.setItem('creatoros_agent_count', String(getAgentMsgsUsed() + 1));
+}
+function canSendAgentMsg() {
+  var plan = getPlan();
+  if (plan === 'max') return true;
+  if (plan === 'pro') return getAgentMsgsUsed() < 20;
+  return getAgentMsgsUsed() < 3;
+}
+function showPaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.remove('hide'); }
+function hidePaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.add('hide'); }
+function dismissPaywall() { hidePaywallOverlay(); }
+function startCheckout() {
+  var btn = document.getElementById('paywall-upgrade-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
+  fetch('/api/checkout', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok && d.url) { window.location.href = d.url; }
+      else {
+        alert('Checkout error: ' + (d.error || 'Unknown'));
+        if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+      }
+    })
+    .catch(function(e) {
+      alert('Network error: ' + e);
+      if (btn) { btn.disabled = false; btn.textContent = 'Upgrade to Pro — $29/month'; }
+    });
+}
+(function() {
+  var p = new URLSearchParams(window.location.search);
+  if (p.get('upgraded') === '1' && p.get('session_id')) {
+    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok && d.paid) {
+          localStorage.setItem('creatoros_pro', '1');
+          localStorage.setItem('creatoros_plan', d.plan || 'pro');
+          var msg = d.plan === 'max' ? 'Welcome to CreatorOS Max! You have unlimited access.' : 'Welcome to CreatorOS Pro!';
+          alert(msg);
+        }
+      })
+      .finally(function() { window.history.replaceState({}, '', window.location.pathname); });
+  }
+})();
 </script>
 </body>
 </html>
