@@ -756,9 +756,9 @@ footer .nav-logo{text-decoration:none;}
     <a href="#how-it-works">How It Works</a>
     <a href="#pricing" onclick="openPricingModal();return false;">Pricing</a>
   </div>
-  <div class="nav-right">
-    <button class="btn-ghost" onclick="focusHeroInput()">Sign In</button>
-    <button class="btn-grad" onclick="focusHeroInput()">Try Free</button>
+  <div class="nav-right" id="nav-right">
+    <button class="btn-ghost" onclick="openAuthModal('signin')">Sign In</button>
+    <button class="btn-grad" onclick="openAuthModal('signup')">Try Free</button>
   </div>
 </nav>
 
@@ -1326,15 +1326,40 @@ footer .nav-logo{text-decoration:none;}
   </div>
 </div>
 
+<!-- AUTH MODAL -->
+<div class="upgrade-overlay" id="auth-modal-overlay" onclick="closeAuthModal()">
+  <div class="upgrade-modal" onclick="event.stopPropagation()" style="max-width:420px;padding:32px;">
+    <div class="upgrade-h" id="auth-modal-title" style="font-size:22px;margin-bottom:4px;">Sign In</div>
+    <div class="upgrade-sub" id="auth-modal-sub" style="margin-bottom:20px;">Welcome back to CreatorOS</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px;">
+      <input id="auth-email" type="email" placeholder="Email address" autocomplete="email"
+        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" />
+      <input id="auth-password" type="password" placeholder="Password (min 6 chars)"
+        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" />
+    </div>
+    <div id="auth-error" style="color:#f87171;font-size:13px;margin-bottom:12px;display:none;"></div>
+    <button id="auth-submit-btn" class="upgrade-cta" onclick="authSubmit()" style="width:100%;">Sign In</button>
+    <div style="text-align:center;margin-top:14px;font-size:13px;color:var(--t3);">
+      <span id="auth-toggle-label">Don't have an account? </span>
+      <a id="auth-toggle-link" onclick="toggleAuthMode()" style="color:#818cf8;cursor:pointer;">Sign Up</a>
+    </div>
+    <a class="upgrade-close-link" onclick="closeAuthModal()" style="margin-top:10px;">Maybe later</a>
+  </div>
+</div>
+
 <!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/static/components/DemoHook.js"><script src="/static/components/AhaMomentCard.js"></script>
 <script src="/static/components/BenchmarkStrip.js"></script>
 <script src="/static/components/EmailPreview.js"></script>
 <script>
+var _SB=supabase.createClient('https://fudonxxaxdjajrryxopk.supabase.co','sb_publishable_MQaz2Ed9psgontByiIdX9g_4WqnS5g3');
+var _authMode='signin';
 // ══════════════════════════════
 // STATE
 // ══════════════════════════════
 var G = {
+  session:null,user:null,
   username: '',
   data: null,
   currentSection: 'overview',
@@ -1411,10 +1436,13 @@ function startAnalysis() {
 
   fetch('/api/analyze/start', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: _apiHeaders(),
     body: JSON.stringify({ username: raw, api_key: apiKey || undefined }),
   })
-  .then(function(r) { return r.json(); })
+  .then(function(r){
+    if(r.status===403)return r.json().then(function(){throw{limitReached:true};});
+    return r.json();
+  })
   .then(function(d) {
     if (!d.ok || !d.job_id) {
       stopLoadingAnimation();
@@ -1424,8 +1452,9 @@ function startAnalysis() {
     }
     pollJob(d.job_id);
   })
-  .catch(function() {
+  .catch(function(err) {
     stopLoadingAnimation();
+    if(err&&err.limitReached){openPricingModal();return;}
     alert('Network error. Please try again.');
     goToLanding();
   });
@@ -1538,11 +1567,13 @@ function pollJob(jobId) {
           buildDashboard(s.data);
           stopLoadingAnimation();
           G._gateJobId = jobId;
-          document.getElementById('email-capture-overlay').style.display = 'flex';
-          setTimeout(function() {
-            var n = document.getElementById('email-capture-name');
-            if (n) n.focus();
-          }, 100);
+          if(G.user){
+            finishLoadingBar(function(){showPage('page-results');switchSection('overview',document.querySelector('[data-section=overview]'));});
+            markDeepLoading();startDeepStream(jobId);
+          }else{
+            document.getElementById('email-capture-overlay').style.display='flex';
+            setTimeout(function(){var n=document.getElementById('email-capture-name');if(n)n.focus();},100);
+          }
         }
 
         // SSE stream sets job complete — polling stops
@@ -1731,6 +1762,17 @@ function closeMoreSheet() {
   document.getElementById('bottom-sheet').classList.remove('open');
 }
 
+
+function openAuthModal(m){_authMode=m||'signin';_applyAuthMode();document.getElementById('auth-modal-overlay').classList.add('open');setTimeout(function(){var e=document.getElementById('auth-email');if(e)e.focus();},150);}
+function closeAuthModal(){document.getElementById('auth-modal-overlay').classList.remove('open');document.getElementById('auth-error').style.display='none';}
+function _applyAuthMode(){var u=_authMode==='signup';document.getElementById('auth-modal-title').textContent=u?'Create Account':'Sign In';document.getElementById('auth-modal-sub').textContent=u?'Start tracking your growth':'Welcome back to CreatorOS';document.getElementById('auth-submit-btn').textContent=u?'Create Account':'Sign In';document.getElementById('auth-toggle-label').textContent=u?'Already have an account? ':"Don't have an account? ";document.getElementById('auth-toggle-link').textContent=u?'Sign In':'Sign Up';}
+function toggleAuthMode(){_authMode=_authMode==='signin'?'signup':'signin';_applyAuthMode();document.getElementById('auth-error').style.display='none';}
+function authSubmit(){var email=document.getElementById('auth-email').value.trim(),password=document.getElementById('auth-password').value,errEl=document.getElementById('auth-error'),btn=document.getElementById('auth-submit-btn');errEl.style.display='none';if(!email||!password){errEl.textContent='Please fill in all fields.';errEl.style.display='block';return;}btn.disabled=true;btn.textContent=_authMode==='signup'?'Creating account…':'Signing in…';(_authMode==='signup'?_SB.auth.signUp({email:email,password:password}):_SB.auth.signInWithPassword({email:email,password:password})).then(function(res){if(res.error){errEl.style.color='#f87171';errEl.textContent=res.error.message;errEl.style.display='block';}else if(_authMode==='signup'&&!res.data.session){errEl.style.color='#34d399';errEl.textContent='Check your email to confirm your account, then sign in.';errEl.style.display='block';_authMode='signin';_applyAuthMode();}btn.disabled=false;btn.textContent=_authMode==='signup'?'Create Account':'Sign In';}).catch(function(){errEl.style.color='#f87171';errEl.textContent='Something went wrong.';errEl.style.display='block';btn.disabled=false;btn.textContent=_authMode==='signup'?'Create Account':'Sign In';});}
+function signOut(){_SB.auth.signOut();}
+function updateAuthUI(){var el=document.getElementById('nav-right');if(!el)return;if(G.user){el.innerHTML='<span style="color:var(--t2);font-size:13px;margin-right:12px;">'+G.user.email+'</span><button class="btn-ghost" onclick="signOut()">Sign Out</button>';}else{el.innerHTML='<button class="btn-ghost" onclick="openAuthModal(\'signin\')">Sign In</button><button class="btn-grad" onclick="openAuthModal(\'signup\')">Try Free</button>';}}
+function _apiHeaders(){var h={'Content-Type':'application/json'};if(G.session&&G.session.access_token)h['Authorization']='Bearer '+G.session.access_token;return h;}
+_SB.auth.getSession().then(function(res){G.session=res.data.session;G.user=G.session?G.session.user:null;updateAuthUI();});
+_SB.auth.onAuthStateChange(function(ev,s){G.session=s;G.user=s?s.user:null;updateAuthUI();if(ev==='SIGNED_IN')closeAuthModal();});
 // ══════════════════════════════
 // UPGRADE MODAL
 // ══════════════════════════════
@@ -1741,7 +1783,7 @@ function closePricingModal() {
   document.getElementById('pricing-modal-overlay').classList.remove('open');
 }
 function startMaxCheckout() {
-  fetch('/api/checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:'max'})})
+  fetch('/api/checkout', {method:'POST',headers:_apiHeaders(),body:JSON.stringify({plan:'max'})})
     .then(function(r){return r.json();})
     .then(function(d){if(d.ok&&d.url)window.location.href=d.url;else alert('Checkout unavailable.');})
     .catch(function(){alert('Checkout unavailable.');});
@@ -2346,7 +2388,7 @@ function dismissPaywall() { hidePaywallOverlay(); }
 function startCheckout() {
   var btn = document.getElementById('paywall-upgrade-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Redirecting…'; }
-  fetch('/api/checkout', { method: 'POST' })
+  fetch('/api/checkout', { method: 'POST', headers: _apiHeaders(), body: JSON.stringify({plan:'pro'}) })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok && d.url) { window.location.href = d.url; }
@@ -2363,7 +2405,7 @@ function startCheckout() {
 (function() {
   var p = new URLSearchParams(window.location.search);
   if (p.get('upgraded') === '1' && p.get('session_id')) {
-    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
+    fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')), {headers:_apiHeaders()})
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d.ok && d.paid) {
