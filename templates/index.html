@@ -1362,7 +1362,7 @@ function startAnalysis() {
     var limit = plan === 'pro' ? 10 : 1;
     var msg = plan === 'pro'
       ? 'You have used all ' + limit + ' analyses this month. Upgrade to Max for unlimited analyses.'
-      : 'You have used your free scan. Upgrade to Pro or Max to run more analyses.';
+      : 'You have already used your 1 free scan. Upgrade to Pro or Max to run more analyses.';
     if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
     return;
   }
