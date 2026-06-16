@@ -72,6 +72,10 @@ def _init_jobs_db():
             "CREATE TABLE IF NOT EXISTS otp_codes "
             "(email TEXT PRIMARY KEY, code TEXT, name TEXT, expires REAL)"
         )
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS analysis_cache "
+            "(username TEXT PRIMARY KEY, overview_data TEXT, deep_data TEXT, analyzed_at REAL)"
+        )
 
 
 _init_jobs_db()
