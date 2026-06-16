@@ -154,6 +154,18 @@ def _cache_set_deep(username, deep_data):
                   (json.dumps(deep_data), username.lower()))
 
 
+def _prerun_deep(username, profile_data, api_key, overview_data):
+    try:
+        merged = {k: v for k, v in overview_data.items() if not k.startswith("_")}
+        for section_name, section_data in stream_deep_sections(profile_data, api_key, overview_data):
+            merged[section_name] = section_data
+        merged["deep_ok"] = True
+        _cache_set_deep(username.lower(), {k: v for k, v in merged.items() if not k.startswith("_")})
+        _analysis_cache[username.lower()] = merged
+    except Exception:
+        pass
+
+
 def _run_analysis_job(job_id, username, api_key, apify_token):
     """Background worker: scrape → fast overview → deep modules, writing
     progress to SQLite at each stage so the client can render progressively."""
@@ -176,6 +188,7 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
         overview["_profile_data"] = _pd(profile)
         _job_set(job_id, "overview_ready", data=overview)
         _cache_set_overview(username.lower(), overview)
+        threading.Thread(target=_prerun_deep, args=(username, profile_data, api_key, overview), daemon=True).start()
         # Deep analysis handled by SSE /api/analyze/stream-deep/<job_id>
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
