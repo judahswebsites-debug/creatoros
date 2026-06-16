@@ -737,7 +737,7 @@ footer .nav-logo{text-decoration:none;}
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#how-it-works">How It Works</a>
-    <a href="#pricing" onclick="if(!document.getElementById('page-landing') || document.getElementById('page-landing').classList.contains('hide')){event.preventDefault();startCheckout();}">Pricing</a>
+    <a href="#pricing" onclick="openPricingModal();return false;">Pricing</a>
   </div>
   <div class="nav-right">
     <button class="btn-ghost" onclick="focusHeroInput()">Sign In</button>
