@@ -1602,16 +1602,18 @@ function pollJob(jobId) {
         }
 
         // First paint: render overview then show email gate before results
-        if ((s.status === 'deep_ready' || s.status === 'overview_ready') && !G._overviewShown && s.data) {
+        if ((s.status === 'deep_ready' || s.status === 'deep_ready' && !G._overviewShown && s.data) {
+          var _dk2=['content_pillars','viral_patterns','top_tactics','video_blueprints','trend_opportunities','follower_forecast','monetization'];
+          if(!_dk2.some(function(k){return s.data[k];})) return;
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
           buildDashboard(s.data);
+          buildDeep(s.data);
           stopLoadingAnimation();
           G._gateJobId = jobId;
           if(G.user){
             finishLoadingBar(function(){showPage('page-results');switchSection('overview',document.querySelector('[data-section=overview]'));});
-            markDeepLoading();startDeepStream(jobId);
           }else{
             document.getElementById('email-capture-overlay').style.display='flex';
             setTimeout(function(){var n=document.getElementById('email-capture-name');if(n)n.focus();},100);
