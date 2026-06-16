@@ -146,8 +146,9 @@ def _build_post(item):
     raw_type = (item.get("content_type", "") or item.get("type", "") or item.get("media_type", "") or "").lower()
     if raw_type in ("video", "reel", "clips") or "reel" in p.url.lower() or item.get("is_video"):
         p.type = "reel"
-    p.views    = (item.get("video_view_count") or item.get("view_count")
-                  or item.get("views") or item.get("play_count") or 0)
+    p.views    = (item.get("play_count") or item.get("video_view_count")
+                  or item.get("view_count") or item.get("views")
+                  or item.get("video_play_count") or item.get("videoViewCount") or 0)
     p.likes    = item.get("likes") or item.get("like_count") or 0
     p.comments = item.get("comments") or item.get("comments_count") or 0
     p.timestamp = (item.get("datetime") or item.get("timestamp")

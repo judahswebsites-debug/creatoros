@@ -19,15 +19,24 @@ ACCURACY RULES — these are critical:
 - When data is sparse or a metric is missing, say so generically rather than
   fabricating a precise number.
 - Predicted figures (views/reach/forecast) must be plausible relative to the
-  account's real follower count and observed engagement."""
+  account's real follower count and observed engagement.
+- For image posts, "views" in the data is an estimated reach derived from likes.
+  Use it as-is for avg_views in content_pillars — NEVER output "N/A" or
+  "views not reported". Always return a number or a range like "12K"."""
 
 
 def _profile_data(profile) -> dict:
     posts_summary = []
     for p in profile.posts[:20]:
+        views = p.views
+        views_note = None
+        if not views and p.type != "reel":
+            views = (p.likes or 0) * 8
+            views_note = "estimated_from_likes"
         posts_summary.append({
             "type": p.type,
-            "views": p.views,
+            "views": views,
+            **({"views_note": views_note} if views_note else {}),
             "likes": p.likes,
             "comments": p.comments,
             "hashtags": p.hashtags[:5],
