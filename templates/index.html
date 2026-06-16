@@ -2022,8 +2022,26 @@ function buildTactics(tactics) {
 // ══════════════════════════════
 function buildBlueprints(blueprints) {
   var list = document.getElementById('blueprints-list');
+  if (!list) return;
+  if (!Array.isArray(blueprints)) {
+    if (blueprints && Array.isArray(blueprints.video_blueprints)) {
+      blueprints = blueprints.video_blueprints;
+    } else { return; }
+  }
   list.innerHTML = '';
   blueprints.forEach(function(bp, idx) {
+    bp = bp || {};
+    bp.rank = bp.rank != null ? bp.rank : (idx + 1);
+    bp.title = bp.title || bp.video_title || bp.name || '(untitled)';
+    bp.hook = bp.hook || bp.opening_hook || bp.hook_line || '';
+    bp.why = bp.why || bp.rationale || bp.reason || '';
+    bp.tags = bp.tags || bp.categories || [];
+    bp.predicted_views = bp.predicted_views || bp.views || bp.estimated_views || '—';
+    bp.saves = bp.saves || bp.estimated_saves || '—';
+    bp.shares = bp.shares || bp.estimated_shares || '—';
+    bp.shot_list = bp.shot_list || bp.shots || [];
+    bp.caption = bp.caption || '';
+    bp.hashtags = bp.hashtags || [];
     var card = document.createElement('div');
     card.className = 'blueprint-card';
 
