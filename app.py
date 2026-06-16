@@ -500,7 +500,7 @@ Sent every Monday at 8:00 AM | CreatorOS
 def checkout():
     try:
         session = stripe.checkout.Session.create(
-            line_items=[{"price": "price_1TikN9DpHO7O30oqhIbqb2kE", "quantity": 1}],
+            line_items=[{"price": "price_1TilXdDpHO7O30oqdSSpYw23", "quantity": 1}],
             mode="subscription",
             success_url="https://creatoros-ark3.onrender.com/?session_id={CHECKOUT_SESSION_ID}&upgraded=1",
             cancel_url="https://creatoros-ark3.onrender.com/",
