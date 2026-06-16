@@ -1642,19 +1642,12 @@ function pollJob(jobId) {
 }
 
 function updateLoadingForStatus(status) {
-  // Drive the real loading steps from backend job status
   if (status === 'scraping' || status === 'queued') {
-    setStep(0, 'done'); setStep(1, 'active');
     setLoadingEta('Pulling your live posts & Reels…');
   } else if (status === 'analyzing_overview') {
-    setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'active');
     setLoadingEta('Running AI analysis…');
   } else if (status === 'overview_ready') {
-    setStep(0, 'done'); setStep(1, 'done'); setStep(2, 'done'); setStep(3, 'active');
     setLoadingEta('Generating deep insights…');
-  } else if (status === 'deep_phase1' || status === 'deep_phase2' || status === 'complete') {
-    for (var i = 0; i < 4; i++) setStep(i, 'done');
-    setLoadingEta('Done — opening your growth report');
   }
 }
 

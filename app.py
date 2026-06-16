@@ -167,10 +167,34 @@ def _cache_set_deep(username, deep_data):
 
 
 def _prerun_deep(username, profile_data, api_key, overview_data):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    class _FakeProfile:
+        def __init__(self, d):
+            self.username = d.get("username", "")
+            self.followers = d.get("followers", 0)
+            self.following = d.get("following", 0)
+            self.bio = d.get("bio", "")
+            self.category = d.get("category", "")
+            self.avg_engagement_rate = d.get("avg_engagement_rate", 0)
+            self.posting_frequency_per_week = d.get("posting_frequency_per_week", 0)
+            self.best_posting_days = d.get("best_posting_days", [])
+            self.engagement_trend = d.get("engagement_trend", "stable")
+            self.top_format = d.get("top_format", "Reels")
+            self.meta = {"posts_scraped": d.get("posts_scraped", 0), "reels_scraped": 0, "scrape_quality": "high"}
+            self.posts = []
     merged = {k: v for k, v in overview_data.items() if not k.startswith("_")}
+    fp = _FakeProfile(profile_data)
     try:
-        for section_name, section_data in stream_deep_sections(profile_data, api_key, overview_data):
-            merged[section_name] = section_data
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futures = [ex.submit(analyze_deep_phase1, fp, api_key, overview_data),
+                       ex.submit(analyze_deep_phase2, fp, api_key, overview_data),
+                       ex.submit(analyze_deep_phase3, fp, api_key, overview_data)]
+            for fut in as_completed(futures):
+                result = fut.result()
+                if isinstance(result, dict):
+                    for k, v in result.items():
+                        if k not in ("ok", "error"):
+                            merged[k] = v
         merged["deep_ok"] = True
     except Exception as e:
         merged["deep_error"] = str(e)
@@ -202,12 +226,9 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
             return
         overview["profile"] = profile_dict
         from analyzer import _profile_data as _pd
-        overview["_profile_data"] = _pd(profile)
-        _job_set(job_id, "overview_ready", data=overview)
-        _cache_set_overview(username.lower(), overview)
-        from analyzer import _profile_data as _pd
         profile_data = _pd(profile)
         overview["_profile_data"] = profile_data
+        _cache_set_overview(username.lower(), overview)
         full_data = _prerun_deep(username, profile_data, api_key, overview)
         _job_set(job_id, "deep_ready", data=full_data)
     except Exception as e:
