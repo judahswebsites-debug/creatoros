@@ -352,6 +352,15 @@ def stream_deep(job_id):
             deep_cached = c["deep"]
 
     def generate():
+        nonlocal deep_cached
+        if not deep_cached and username:
+            for _ in range(45):
+                time.sleep(2)
+                c = _cache_get(username)
+                if c and c.get("deep"):
+                    deep_cached = c["deep"]
+                    break
+                yield ": heartbeat\n\n"
         merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
         if deep_cached:
             for section_name, section_data in deep_cached.items():
