@@ -1338,32 +1338,69 @@ function startAnalysis() {
   document.getElementById('inp-error').classList.add('hide');
 
   G.username = raw;
-  document.getElementById('loading-username').textContent = '@' + raw;
-  showPage('page-loading');
-  startLoadingAnimation();
 
-  G._overviewShown = false;
-
+  var apiKeyInp = document.getElementById('api-key-inp');
+  var apiKey = apiKeyInp ? apiKeyInp.value.trim() : '';
+  G._pendingJobId = null;
+  G._pendingJobError = null;
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: raw, api_key: (document.getElementById('api-key-inp') || {}).value || undefined }),
+    body: JSON.stringify({ username: raw, api_key: apiKey || undefined }),
   })
   .then(function(r) { return r.json(); })
   .then(function(d) {
     if (!d.ok || !d.job_id) {
-      stopLoadingAnimation();
-      alert('Analysis failed: ' + (d.error || 'Unknown error'));
-      goToLanding();
-      return;
+      G._pendingJobError = d.error || 'Unknown error';
+    } else {
+      G._pendingJobId = d.job_id;
     }
-    pollJob(d.job_id);
   })
-  .catch(function(e) {
-    stopLoadingAnimation();
-    alert('Network error. Please try again.');
-    goToLanding();
-  });
+  .catch(function() { G._pendingJobError = 'Network error'; });
+
+  document.getElementById('email-capture-overlay').style.display = 'flex';
+  setTimeout(function() { document.getElementById('email-capture-name').focus(); }, 100);
+}
+
+function submitEmailCapture() {
+  var name = document.getElementById('email-capture-name').value.trim();
+  var email = document.getElementById('email-capture-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
+    document.getElementById('email-capture-email').focus();
+    return;
+  }
+  var btn = document.getElementById('email-capture-btn');
+  btn.disabled = true;
+  btn.textContent = 'Loading your report…';
+
+  fetch('/api/capture-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, username: G.username }),
+  }).catch(function(){});
+
+  document.getElementById('email-capture-overlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Get My Free Report →';
+
+  document.getElementById('loading-username').textContent = '@' + G.username;
+  showPage('page-loading');
+  startLoadingAnimation();
+  G._overviewShown = false;
+
+  function waitAndPoll() {
+    if (G._pendingJobError) {
+      stopLoadingAnimation();
+      alert('Analysis failed: ' + G._pendingJobError);
+      goToLanding();
+    } else if (G._pendingJobId) {
+      pollJob(G._pendingJobId);
+    } else {
+      setTimeout(waitAndPoll, 300);
+    }
+  }
+  waitAndPoll();
 }
 
 // ══════════════════════════════
