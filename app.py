@@ -122,6 +122,34 @@ def _profile_to_dict(profile):
     }
 
 
+_CACHE_TTL = 24 * 3600  # 24 hours
+
+def _cache_get(username):
+    with _db() as c:
+        row = c.execute(
+            "SELECT overview_data, deep_data, analyzed_at FROM analysis_cache WHERE username=?",
+            (username.lower(),)
+        ).fetchone()
+    if not row:
+        return None
+    if time.time() - row[2] > _CACHE_TTL:
+        return None
+    return {"overview": json.loads(row[0]) if row[0] else None, "deep": json.loads(row[1]) if row[1] else None, "analyzed_at": row[2]}
+
+def _cache_set_overview(username, overview_data):
+    with _db() as c:
+        c.execute(
+            "INSERT INTO analysis_cache(username, overview_data, analyzed_at) VALUES(?,?,?) "
+            "ON CONFLICT(username) DO UPDATE SET overview_data=excluded.overview_data, analyzed_at=excluded.analyzed_at",
+            (username.lower(), json.dumps(overview_data), time.time())
+        )
+
+def _cache_set_deep(username, deep_data):
+    with _db() as c:
+        c.execute("UPDATE analysis_cache SET deep_data=? WHERE username=?",
+                  (json.dumps(deep_data), username.lower()))
+
+
 def _run_analysis_job(job_id, username, api_key, apify_token):
     """Background worker: scrape → fast overview → deep modules, writing
     progress to SQLite at each stage so the client can render progressively."""
@@ -143,6 +171,7 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
         from analyzer import _profile_data as _pd
         overview["_profile_data"] = _pd(profile)
         _job_set(job_id, "overview_ready", data=overview)
+        _cache_set_overview(username.lower(), overview)
         # Deep analysis handled by SSE /api/analyze/stream-deep/<job_id>
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
@@ -251,6 +280,15 @@ def analyze_start():
     api_key = data.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
     apify_token = os.getenv("APIFY_API_TOKEN")
 
+    force_refresh = data.get("refresh", False)
+    if not force_refresh:
+        cached = _cache_get(username)
+        if cached and cached.get("overview"):
+            job_id = uuid.uuid4().hex
+            _job_set(job_id, "overview_ready", data=cached["overview"])
+            age_hours = round((time.time() - cached["analyzed_at"]) / 3600, 1)
+            return jsonify({"ok": True, "job_id": job_id, "cached": True, "cache_age_hours": age_hours})
+
     job_id = uuid.uuid4().hex
     _job_set(job_id, "queued")
     threading.Thread(
@@ -258,7 +296,7 @@ def analyze_start():
         args=(job_id, username, api_key, apify_token),
         daemon=True,
     ).start()
-    return jsonify({"ok": True, "job_id": job_id})
+    return jsonify({"ok": True, "job_id": job_id, "cached": False})
 
 
 @app.route("/api/analyze/status/<job_id>")
@@ -279,13 +317,28 @@ def stream_deep(job_id):
         return jsonify({"ok": False, "error": "Job not ready"}), 404
     job_data = job["data"]
     profile_data = job_data.get("_profile_data")
-    if not profile_data:
-        return jsonify({"ok": False, "error": "Profile data missing"}), 400
     api_key = os.getenv("ANTHROPIC_API_KEY")
     username = (job_data.get("profile") or {}).get("username", "").lower()
 
+    deep_cached = None
+    if username:
+        c = _cache_get(username)
+        if c and c.get("deep"):
+            deep_cached = c["deep"]
+
     def generate():
         merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
+        if deep_cached:
+            for section_name, section_data in deep_cached.items():
+                if section_name.startswith("_") or section_name in ("ok", "profile", "deep_ok"):
+                    continue
+                payload = json.dumps({"type": "section", "key": section_name, "data": section_data})
+                yield f"data: {payload}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'cached': True})}\n\n"
+            return
+        if not profile_data:
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Profile data missing'})}\n\n"
+            return
         try:
             for section_name, section_data in stream_deep_sections(profile_data, api_key, job_data):
                 merged[section_name] = section_data
@@ -297,6 +350,7 @@ def stream_deep(job_id):
         merged["deep_ok"] = True
         if username:
             _analysis_cache[username] = merged
+            _cache_set_deep(username, {k: v for k, v in merged.items() if not k.startswith("_")})
         _job_set(job_id, "complete", data=merged)
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

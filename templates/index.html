@@ -1046,6 +1046,9 @@ footer .nav-logo{text-decoration:none;}
               <div class="profile-hero-name" id="hero-username">@username</div>
               <div class="profile-hero-category" id="hero-category">Creator</div>
               <div class="profile-hero-bio" id="hero-bio"></div>
+              <div id="cache-badge" style="display:none;margin-top:6px;font-size:11px;color:var(--t3);">
+                ⚡ Cached · <span id="cache-age"></span> · <a onclick="refreshAnalysis()" style="color:#818cf8;cursor:pointer;text-decoration:underline;">Refresh</a>
+              </div>
             </div>
           </div>
           <div class="profile-hero-stats">
@@ -1453,7 +1456,7 @@ function startAnalysis() {
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: _apiHeaders(),
-    body: JSON.stringify({ username: raw, api_key: apiKey || undefined }),
+    body: JSON.stringify({ username: raw, api_key: apiKey || undefined, refresh: G._forceRefresh || false }),
   })
   .then(function(r){
     if(r.status===403)return r.json().then(function(){throw{limitReached:true};});
@@ -1466,6 +1469,8 @@ function startAnalysis() {
       goToLanding();
       return;
     }
+    G._forceRefresh = false;
+    G._cacheAge = d.cached ? d.cache_age_hours : null;
     pollJob(d.job_id);
   })
   .catch(function(err) {
@@ -1845,6 +1850,14 @@ function buildDashboard(d) {
     avEl.textContent = username[0].toUpperCase();
   }
   document.getElementById('dash-username').textContent = '@' + username;
+  var badge = document.getElementById('cache-badge');
+  if (badge) {
+    if (G._cacheAge !== null && G._cacheAge !== undefined) {
+      var ageStr = G._cacheAge < 1 ? 'just now' : Math.round(G._cacheAge) + 'h ago';
+      document.getElementById('cache-age').textContent = 'analyzed ' + ageStr;
+      badge.style.display = 'block';
+    } else { badge.style.display = 'none'; }
+  }
   document.getElementById('dash-followers').textContent = fmtNum(profile.followers || 0) + ' followers';
   document.getElementById('dash-score-pill').textContent = 'Score: ' + (d.overall_score || '—') + '/100';
 
