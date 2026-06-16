@@ -1775,14 +1775,7 @@ function switchSection(name, clickedEl) {
     if (tabEl2) tabEl2.classList.add('active');
   }
 
-  if (name === 'analytics' && !G.analyticsInited && G.data) {
-    G.analyticsInited = true;
-    BenchmarkStrip.mount('#benchmark-strip-mount', G.username, G.data);
-    AhaMomentCard.mount('#aha-moment-mount', {
-      username: G.username,
-      data: G.data,
-      onCtaClick: function(rec) { alert('Applying: ' + rec.headline); }
-    });
+  if (name === 'analytics' && G.data) {
     buildEngagementStats(G.data);
     buildPostEngagementChart(G.data);
   }
@@ -2009,6 +2002,11 @@ function buildDeep(d) {
   if (d.video_blueprints) buildBlueprints(d.video_blueprints);
   if (d.trend_opportunities) buildTrends(d.trend_opportunities);
   if (d.monetization) buildMonetization(d);
+  var analyticsSection = document.getElementById('section-analytics');
+  if (analyticsSection && analyticsSection.classList.contains('active')) {
+    buildEngagementStats(d);
+    buildPostEngagementChart(d);
+  }
 }
 
 // ══════════════════════════════

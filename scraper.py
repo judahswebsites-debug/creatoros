@@ -76,12 +76,15 @@ def _compute_analytics(profile):
     profile.meta["avg_reel_views"] = round(sum(reel_views) / len(reel_views)) if reel_views else 0
     half = len(posts) // 2
     if half > 0:
-        recent = sum(engagement_rates[:half]) / half
-        older  = sum(engagement_rates[half:]) / max(1, len(posts) - half)
-        if recent > older * 1.1:
+        abs_eng = [(p.likes + p.comments) for p in posts]
+        recent_abs = sum(abs_eng[:half]) / half
+        older_abs  = sum(abs_eng[half:]) / max(1, len(posts) - half)
+        if recent_abs > older_abs * 1.15:
             profile.engagement_trend = "growing"
-        elif recent < older * 0.9:
+        elif recent_abs < older_abs * 0.85:
             profile.engagement_trend = "declining"
+        else:
+            profile.engagement_trend = "stable"
 
 
 def _fetch_bright_data(username, api_key):
