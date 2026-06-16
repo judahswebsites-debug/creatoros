@@ -1551,8 +1551,14 @@ function submitOtpCode() {
         switchSection('overview', document.querySelector('[data-section=overview]'));
       });
       incrementAnalysesUsed();
-      markDeepLoading();
-      startDeepStream(jobId);
+      // Deep data was pre-built into G.data before the email gate appeared
+      var _dk = ['content_pillars','viral_patterns','top_tactics','video_blueprints','trend_opportunities','follower_forecast','monetization'];
+      if (G.data && _dk.some(function(k){ return G.data[k]; })) {
+        buildDeep(G.data);
+      } else {
+        markDeepLoading();
+        startDeepStream(jobId);
+      }
     })
     .catch(function(e) {
       btn.disabled = false;
