@@ -1403,6 +1403,48 @@ function submitEmailCapture() {
   waitAndPoll();
 }
 
+function showEmailCaptureGate(data, jobId) {
+  G._pendingDashboardJobId = jobId;
+  document.getElementById('email-capture-overlay').style.display = 'flex';
+  setTimeout(function() { document.getElementById('email-capture-name').focus(); }, 100);
+}
+
+function submitEmailCapture() {
+  var name = document.getElementById('email-capture-name').value.trim();
+  var email = document.getElementById('email-capture-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
+    document.getElementById('email-capture-email').focus();
+    return;
+  }
+  var btn = document.getElementById('email-capture-btn');
+  btn.disabled = true;
+  btn.textContent = 'Loading your report…';
+  fetch('/api/capture-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, username: G.username }),
+  }).catch(function(){});
+  document.getElementById('email-capture-overlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Get My Free Report →';
+  var jobId = G._pendingDashboardJobId;
+  finishLoadingBar(function() {
+    showPage('page-results');
+    switchSection('overview', document.querySelector('[data-section=overview]'));
+  });
+  var pro = isPro();
+  var used = getAnalysesUsed();
+  if (!pro && used >= 1) {
+    markDeepLoading();
+    setTimeout(function() { showPaywallOverlay(); }, 600);
+  } else {
+    incrementAnalysesUsed();
+    markDeepLoading();
+    startDeepStream(jobId);
+  }
+}
+
 // ══════════════════════════════
 // ASYNC JOB POLLING (score-first progressive render)
 // ══════════════════════════════
