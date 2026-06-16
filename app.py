@@ -501,7 +501,7 @@ def checkout():
     try:
         data = request.get_json(force=True, silent=True) or {}
         plan = (data.get("plan") or "pro").strip().lower()
-        prices = {"pro": "price_1TijAFDpHO7O3OoqlamWVRRx", "max": "price_1TilXdDpHO7O30oqdSSpYw23"}
+        prices = {"pro": "price_1TikN9DpHO7O30oqhIbqb2kE", "max": "price_1TilXdDpHO7O30oqdSSpYw23"}
         price_id = prices.get(plan, prices["pro"])
         session = stripe.checkout.Session.create(
             line_items=[{"price": price_id, "quantity": 1}],
