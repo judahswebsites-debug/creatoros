@@ -576,6 +576,81 @@ def verify_session():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/api/send-otp", methods=["POST"])
+def send_otp():
+    import random, requests as _req
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get("email") or "").strip()[:200]
+    name = (data.get("name") or "").strip()[:200]
+    if not email or "@" not in email:
+        return jsonify({"ok": False, "error": "valid email required"}), 400
+    code = str(random.randint(100000, 999999))
+    expires = time.time() + 3600
+    with _db() as c:
+        c.execute("INSERT INTO otp_codes(email,code,name,expires) VALUES(?,?,?,?) "
+                  "ON CONFLICT(email) DO UPDATE SET code=excluded.code,name=excluded.name,expires=excluded.expires",
+                  (email, code, name, expires))
+    resend_key = os.getenv("RESEND_API_KEY", "")
+    if not resend_key:
+        return jsonify({"ok": False, "error": "email service not configured"}), 500
+    html = f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;">
+  <h2 style="margin-bottom:8px;">Your CreatorOS code</h2>
+  <p style="color:#666;margin-bottom:24px;">Enter this code to unlock your free Instagram growth report.</p>
+  <div style="font-size:48px;font-weight:bold;letter-spacing:12px;text-align:center;
+              background:#f3f4f6;border-radius:12px;padding:24px;margin-bottom:24px;">{code}</div>
+  <p style="color:#999;font-size:13px;">This code expires in 1 hour. If you didn't request this, ignore this email.</p>
+</div>"""
+    try:
+        r = _req.post("https://api.resend.com/emails",
+                      headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                      json={"from": "CreatorOS <onboarding@resend.dev>", "to": [email],
+                            "subject": "Your CreatorOS verification code", "html": html},
+                      timeout=10)
+        if r.status_code not in (200, 201):
+            return jsonify({"ok": False, "error": f"Email failed: {r.text}"}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/verify-otp", methods=["POST"])
+def verify_otp():
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get("email") or "").strip()
+    code = (data.get("code") or "").strip()
+    username = (data.get("username") or "").strip()
+    if not email or not code:
+        return jsonify({"ok": False, "error": "email and code required"}), 400
+    with _db() as c:
+        row = c.execute("SELECT code, name, expires FROM otp_codes WHERE email=?", (email,)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "No code found. Request a new one."}), 400
+    if time.time() > row[2]:
+        return jsonify({"ok": False, "error": "Code expired. Request a new one."}), 400
+    if code != row[0]:
+        return jsonify({"ok": False, "error": "Invalid code. Try again."}), 400
+    name = row[1]
+    with _db() as c:
+        c.execute("DELETE FROM otp_codes WHERE email=?", (email,))
+        c.execute("INSERT INTO emails(name,email,username,created) VALUES(?,?,?,?)",
+                  (name, email, username, time.time()))
+    try:
+        import requests as _req
+        supabase_url = os.getenv("SUPABASE_URL", "")
+        supabase_key = os.getenv("SUPABASE_SECRET_KEY", "")
+        if supabase_url and supabase_key:
+            _req.post(f"{supabase_url}/auth/v1/admin/users",
+                      headers={"apikey": supabase_key,
+                               "Authorization": f"Bearer {supabase_key}",
+                               "Content-Type": "application/json"},
+                      json={"email": email, "email_confirm": True,
+                            "user_metadata": {"name": name}},
+                      timeout=8)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "email": email, "name": name})
+
+
 @app.route("/api/capture-email", methods=["POST"])
 def capture_email():
     data = request.get_json(force=True, silent=True) or {}

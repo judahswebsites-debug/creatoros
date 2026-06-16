@@ -1494,12 +1494,17 @@ function submitEmailCapture() {
   btn.textContent = 'Sending code…';
   G._ecEmail = email;
   G._ecName = name;
-  _SB.auth.signInWithOtp({ email: email, options: { shouldCreateUser: true } })
+  fetch('/api/send-otp', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: email, name: name})
+  })
+    .then(function(r){ return r.json(); })
     .then(function(res) {
       btn.disabled = false;
       btn.textContent = 'Get My Free Report →';
-      if (res.error) {
-        errEl.textContent = res.error.message || 'Failed to send code. Try again.';
+      if (!res.ok) {
+        errEl.textContent = res.error || 'Failed to send code. Try again.';
         errEl.style.display = 'block';
         return;
       }
@@ -1528,20 +1533,20 @@ function submitOtpCode() {
   var btn = document.getElementById('ec-otp-btn');
   btn.disabled = true;
   btn.textContent = 'Verifying…';
-  _SB.auth.verifyOtp({ email: G._ecEmail, token: code, type: 'email' })
+  fetch('/api/verify-otp', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: G._ecEmail, code: code, username: G.username})
+  })
+    .then(function(r){ return r.json(); })
     .then(function(res) {
       btn.disabled = false;
       btn.textContent = 'Verify & Unlock Report →';
-      if (res.error) {
-        errEl.textContent = res.error.message || 'Invalid code. Please try again.';
+      if (!res.ok) {
+        errEl.textContent = res.error || 'Invalid code. Please try again.';
         errEl.style.display = 'block';
         return;
       }
-      fetch('/api/capture-email', {
-        method: 'POST',
-        headers: Object.assign({'Content-Type':'application/json'}, _apiHeaders()),
-        body: JSON.stringify({ name: G._ecName, email: G._ecEmail, username: G.username }),
-      }).catch(function(){});
       document.getElementById('email-capture-overlay').style.display = 'none';
       var jobId = G._gateJobId;
       finishLoadingBar(function() {
