@@ -1375,6 +1375,13 @@ function goToLanding() {
 // ANALYSIS FLOW
 // ══════════════════════════════
 function startAnalysis() {
+  var raw = document.getElementById('main-inp').value.replace(/^@/,'').trim();
+  if (!raw) {
+    document.getElementById('hero-input-wrap').classList.add('error');
+    document.getElementById('inp-error').classList.remove('hide');
+    document.getElementById('main-inp').focus();
+    return;
+  }
   if (!canRunAnalysis()) {
     var plan = getPlan();
     var limit = plan === 'pro' ? 10 : 1;
