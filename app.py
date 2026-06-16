@@ -191,8 +191,8 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
         from analyzer import _profile_data as _pd
         profile_data = _pd(profile)
         overview["_profile_data"] = profile_data
-        _prerun_deep(username, profile_data, api_key, overview)
-        _job_set(job_id, "deep_ready", data=overview)
+        full_data = _prerun_deep(username, profile_data, api_key, overview)
+        _job_set(job_id, "deep_ready", data=full_data)
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
 
@@ -353,14 +353,27 @@ def stream_deep(job_id):
     api_key = os.getenv("ANTHROPIC_API_KEY")
     username = (job_data.get("profile") or {}).get("username", "").lower()
 
+    _deep_keys = {"content_pillars","viral_patterns","top_growth_tactics","content_ideas","trend_opportunities","monetization","competitor_intel","growth_agent"}
+    job_has_deep = any(k in job_data for k in _deep_keys)
+
     deep_cached = None
-    if username:
+    if not job_has_deep and username:
         c = _cache_get(username)
         if c and c.get("deep"):
             deep_cached = c["deep"]
 
     def generate():
         merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
+        if job_has_deep:
+            for section_name, section_data in job_data.items():
+                if section_name.startswith("_") or section_name in ("ok", "profile", "deep_ok"):
+                    continue
+                if section_name not in _deep_keys:
+                    continue
+                payload = json.dumps({"type": "section", "key": section_name, "data": section_data})
+                yield f"data: {payload}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'cached': True})}\n\n"
+            return
         if deep_cached:
             for section_name, section_data in deep_cached.items():
                 if section_name.startswith("_") or section_name in ("ok", "profile", "deep_ok"):
