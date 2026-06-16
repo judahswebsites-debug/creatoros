@@ -317,9 +317,23 @@ Return ONLY valid JSON matching this exact schema:
 
 
 def analyze_overview(profile, api_key=None) -> dict:
-    """Fast first-paint: score, bottleneck, next best post, analytics."""
+    """Fast first-paint using Haiku for speed: score, bottleneck, next best post, analytics."""
     try:
-        data = _call_claude_json(_overview_prompt(profile), api_key, max_tokens=1600)
+        key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        client = Anthropic(api_key=key)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1600,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": _overview_prompt(profile)}],
+        )
+        raw = message.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.rsplit("```", 1)[0]
+        data = json.loads(repair_json(raw))
         data["ok"] = True
         return data
     except Exception as e:

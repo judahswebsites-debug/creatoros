@@ -15,7 +15,7 @@ load_dotenv()
 
 from demo_routes import demo_bp
 from scraper import scrape_profile
-from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context
+from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context, analyze_deep_phase1, analyze_deep_phase2, analyze_deep_phase3
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(32))
@@ -319,6 +319,14 @@ def analyze_start():
 
     force_refresh = data.get("refresh", False)
     if not force_refresh:
+        # Session cache (fastest path)
+        sess_analysis = session.get("cached_analysis")
+        sess_username = session.get("cached_username", "")
+        if sess_analysis and sess_username.lower() == username.lower():
+            job_id = uuid.uuid4().hex
+            _job_set(job_id, "deep_ready", data=sess_analysis)
+            return jsonify({"ok": True, "job_id": job_id, "cached": True, "cache_age_hours": 0})
+
         cached = _cache_get(username)
         if cached and cached.get("overview"):
             job_id = uuid.uuid4().hex

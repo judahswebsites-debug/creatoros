@@ -1707,34 +1707,24 @@ document.getElementById('main-inp').addEventListener('keydown', function(e) {
 // ══════════════════════════════
 function startLoadingAnimation() {
   var bar = document.getElementById('loading-bar');
-  var progress = 4;
-  bar.style.width = progress + '%';
-  setLoadingEta('Usually ready in about 30 seconds');
-
-  var step = 0;
+  bar.style.width = '2%';
+  setLoadingEta('Usually ready in about 60 seconds');
   setStep(0, 'active');
-
   G.loadingStep = 0;
+  G._loadStart = Date.now();
   G.loadingStepInterval = setInterval(function() {
-    G.loadingStep++;
-    // Stop at step 2 (deep analysis step stays active until deep_ready fires)
-    if (G.loadingStep >= 2) {
-      clearInterval(G.loadingStepInterval);
-      setStep(G.loadingStep - 1, 'done');
-      setStep(2, 'active');
-      return;
+    var pct = parseFloat(document.getElementById('loading-bar').style.width) || 0;
+    if (G.loadingStep === 0 && pct >= 35) {
+      G.loadingStep = 1; setStep(0, 'done'); setStep(1, 'active');
+    } else if (G.loadingStep === 1 && pct >= 62) {
+      G.loadingStep = 2; setStep(1, 'done'); setStep(2, 'active');
     }
-    setStep(G.loadingStep - 1, 'done');
-    setStep(G.loadingStep, 'active');
-  }, 2500);
-
+  }, 300);
   G.progressInterval = setInterval(function() {
-    // Slow crawl that never reaches "done" — bar completes only when deep_ready fires
-    var cap = 75;
-    progress += Math.random() * 1.2;
-    if (progress > cap) progress = cap;
-    bar.style.width = progress + '%';
-  }, 600);
+    var elapsed = (Date.now() - G._loadStart) / 1000;
+    var target = 90 * (1 - Math.exp(-elapsed / 30));
+    bar.style.width = Math.min(target, 90) + '%';
+  }, 500);
 }
 
 function setStep(i, state) {
