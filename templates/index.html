@@ -1412,6 +1412,35 @@ function submitEmailCapture() {
 // ══════════════════════════════
 // ASYNC JOB POLLING (score-first progressive render)
 // ══════════════════════════════
+function submitEmailCapture() {
+  var name = document.getElementById('email-capture-name').value.trim();
+  var email = document.getElementById('email-capture-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
+    document.getElementById('email-capture-email').focus();
+    return;
+  }
+  var btn = document.getElementById('email-capture-btn');
+  btn.disabled = true;
+  btn.textContent = 'Opening your report…';
+  fetch('/api/capture-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, email: email, username: G.username }),
+  }).catch(function(){});
+  document.getElementById('email-capture-overlay').style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Get My Free Report →';
+  var jobId = G._gateJobId;
+  finishLoadingBar(function() {
+    showPage('page-results');
+    switchSection('overview', document.querySelector('[data-section=overview]'));
+  });
+  incrementAnalysesUsed();
+  markDeepLoading();
+  startDeepStream(jobId);
+}
+
 function pollJob(jobId) {
   G._pollCount = 0;
   if (G._jobPoll) clearInterval(G._jobPoll);
@@ -1438,19 +1467,19 @@ function pollJob(jobId) {
           return;
         }
 
-        // First paint: render overview then open SSE stream for deep sections
+        // First paint: render overview then show email gate before results
         if (s.status === 'overview_ready' && !G._overviewShown && s.data) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
           buildDashboard(s.data);
-          markDeepLoading();
           stopLoadingAnimation();
-          finishLoadingBar(function() {
-            showPage('page-results');
-            switchSection('overview', document.querySelector('[data-section=overview]'));
-          });
-          startDeepStream(jobId);
+          G._gateJobId = jobId;
+          document.getElementById('email-capture-overlay').style.display = 'flex';
+          setTimeout(function() {
+            var n = document.getElementById('email-capture-name');
+            if (n) n.focus();
+          }, 100);
         }
 
         // SSE stream sets job complete — polling stops
