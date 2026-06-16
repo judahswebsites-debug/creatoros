@@ -1,5 +1,6 @@
 flask
 flask-cors
+flask-session
 python-dotenv
 anthropic
 requests

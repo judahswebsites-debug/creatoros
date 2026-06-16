@@ -7,7 +7,7 @@ import uuid
 import sqlite3
 import threading
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -18,6 +18,18 @@ from scraper import scrape_profile
 from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(32))
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_FILE_DIR"] = "/tmp/flask_sessions"
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_USE_SIGNER"] = True
+try:
+    from flask_session import Session as _FlaskSession
+    _FlaskSession(app)
+    _session_backend = "filesystem"
+except ImportError:
+    _session_backend = "cookie"
+
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 CORS(app)
 app.register_blueprint(demo_bp)
@@ -342,6 +354,15 @@ def analyze_status(job_id):
     job = _job_get(job_id)
     if not job:
         return jsonify({"ok": False, "error": "Job not found"}), 404
+    # Populate session cache when fresh analysis reaches deep_ready
+    if job.get("status") == "deep_ready" and job.get("data"):
+        username = ((job["data"].get("profile") or {}).get("username") or "").lower()
+        if username and session.get("cached_username", "").lower() != username:
+            try:
+                session["cached_username"] = username
+                session["cached_analysis"] = job["data"]
+            except Exception:
+                pass
     return jsonify({"ok": True, **job})
 
 
