@@ -1295,16 +1295,32 @@ footer .nav-logo{text-decoration:none;}
 <!-- EMAIL CAPTURE MODAL -->
 <div class="upgrade-overlay" id="email-capture-overlay">
   <div class="upgrade-modal" onclick="event.stopPropagation()" style="max-width:420px;">
-    <div class="upgrade-h" style="font-size:22px;">Almost there!</div>
-    <div class="upgrade-sub" style="margin-bottom:24px;">Enter your details to unlock your free Instagram audit report.</div>
-    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
-      <input id="email-capture-name" type="text" placeholder="Your name" autocomplete="name"
-        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;" />
-      <input id="email-capture-email" type="email" placeholder="Your email address" autocomplete="email"
-        style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;" />
+    <!-- Step 1: name + email -->
+    <div id="ec-step1">
+      <div class="upgrade-h" style="font-size:22px;">Almost there!</div>
+      <div class="upgrade-sub" style="margin-bottom:24px;">Enter your details to unlock your free Instagram audit report.</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        <input id="email-capture-name" type="text" placeholder="Your name" autocomplete="name"
+          style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" />
+        <input id="email-capture-email" type="email" placeholder="Your email address" autocomplete="email"
+          style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:15px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" />
+      </div>
+      <div id="ec-error1" style="color:#f87171;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <button class="upgrade-cta" id="email-capture-btn" onclick="submitEmailCapture()" style="width:100%;">Get My Free Report &#8594;</button>
+      <p style="font-size:11px;color:var(--t3);margin-top:12px;text-align:center;">No spam, ever. Unsubscribe anytime.</p>
     </div>
-    <button class="upgrade-cta" id="email-capture-btn" onclick="submitEmailCapture()" style="width:100%;">Get My Free Report &#8594;</button>
-    <p style="font-size:11px;color:var(--t3);margin-top:12px;text-align:center;">No spam, ever. Unsubscribe anytime.</p>
+    <!-- Step 2: OTP code -->
+    <div id="ec-step2" style="display:none;">
+      <div class="upgrade-h" style="font-size:22px;">Check your email</div>
+      <div class="upgrade-sub" id="ec-otp-sub" style="margin-bottom:24px;">We sent a 6-digit code to your email.</div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        <input id="ec-otp-input" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code"
+          style="background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);padding:12px 16px;color:var(--t1);font-size:20px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;letter-spacing:6px;text-align:center;" />
+      </div>
+      <div id="ec-error2" style="color:#f87171;font-size:13px;margin-bottom:12px;display:none;"></div>
+      <button class="upgrade-cta" id="ec-otp-btn" onclick="submitOtpCode()" style="width:100%;">Verify &amp; Unlock Report &#8594;</button>
+      <p style="font-size:12px;color:var(--t3);margin-top:12px;text-align:center;cursor:pointer;" onclick="ecBackToStep1()">&#8592; Use a different email</p>
+    </div>
   </div>
 </div>
 
@@ -1460,53 +1476,14 @@ function startAnalysis() {
   });
 }
 
-function submitEmailCapture() {
-  var name = document.getElementById('email-capture-name').value.trim();
-  var email = document.getElementById('email-capture-email').value.trim();
-  if (!email || !email.includes('@')) {
-    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
-    document.getElementById('email-capture-email').focus();
-    return;
-  }
-  var btn = document.getElementById('email-capture-btn');
-  btn.disabled = true;
-  btn.textContent = 'Loading your report…';
-
-  fetch('/api/capture-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, email: email, username: G.username }),
-  }).catch(function(){});
-
-  document.getElementById('email-capture-overlay').style.display = 'none';
-  btn.disabled = false;
-  btn.textContent = 'Get My Free Report →';
-
-  document.getElementById('loading-username').textContent = '@' + G.username;
-  showPage('page-loading');
-  startLoadingAnimation();
-  G._overviewShown = false;
-
-  function waitAndPoll() {
-    if (G._pendingJobError) {
-      stopLoadingAnimation();
-      alert('Analysis failed: ' + G._pendingJobError);
-      goToLanding();
-    } else if (G._pendingJobId) {
-      pollJob(G._pendingJobId);
-    } else {
-      setTimeout(waitAndPoll, 300);
-    }
-  }
-  waitAndPoll();
-}
-
 // ══════════════════════════════
 // ASYNC JOB POLLING (score-first progressive render)
 // ══════════════════════════════
 function submitEmailCapture() {
   var name = document.getElementById('email-capture-name').value.trim();
   var email = document.getElementById('email-capture-email').value.trim();
+  var errEl = document.getElementById('ec-error1');
+  errEl.style.display = 'none';
   if (!email || !email.includes('@')) {
     document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
     document.getElementById('email-capture-email').focus();
@@ -1514,23 +1491,80 @@ function submitEmailCapture() {
   }
   var btn = document.getElementById('email-capture-btn');
   btn.disabled = true;
-  btn.textContent = 'Opening your report…';
-  fetch('/api/capture-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, email: email, username: G.username }),
-  }).catch(function(){});
-  document.getElementById('email-capture-overlay').style.display = 'none';
-  btn.disabled = false;
-  btn.textContent = 'Get My Free Report →';
-  var jobId = G._gateJobId;
-  finishLoadingBar(function() {
-    showPage('page-results');
-    switchSection('overview', document.querySelector('[data-section=overview]'));
-  });
-  incrementAnalysesUsed();
-  markDeepLoading();
-  startDeepStream(jobId);
+  btn.textContent = 'Sending code…';
+  G._ecEmail = email;
+  G._ecName = name;
+  _SB.auth.signInWithOtp({ email: email, options: { shouldCreateUser: true } })
+    .then(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Get My Free Report →';
+      if (res.error) {
+        errEl.textContent = res.error.message || 'Failed to send code. Try again.';
+        errEl.style.display = 'block';
+        return;
+      }
+      document.getElementById('ec-otp-sub').textContent = 'We sent a 6-digit code to ' + email;
+      document.getElementById('ec-step1').style.display = 'none';
+      document.getElementById('ec-step2').style.display = 'block';
+      setTimeout(function(){ var el=document.getElementById('ec-otp-input'); if(el) el.focus(); }, 100);
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Get My Free Report →';
+      errEl.textContent = 'Error sending code. Please try again.';
+      errEl.style.display = 'block';
+    });
+}
+
+function submitOtpCode() {
+  var code = (document.getElementById('ec-otp-input').value || '').trim();
+  var errEl = document.getElementById('ec-error2');
+  errEl.style.display = 'none';
+  if (!code || code.length < 6) {
+    errEl.textContent = 'Enter the 6-digit code from your email.';
+    errEl.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('ec-otp-btn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying…';
+  _SB.auth.verifyOtp({ email: G._ecEmail, token: code, type: 'email' })
+    .then(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Verify & Unlock Report →';
+      if (res.error) {
+        errEl.textContent = res.error.message || 'Invalid code. Please try again.';
+        errEl.style.display = 'block';
+        return;
+      }
+      fetch('/api/capture-email', {
+        method: 'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, _apiHeaders()),
+        body: JSON.stringify({ name: G._ecName, email: G._ecEmail, username: G.username }),
+      }).catch(function(){});
+      document.getElementById('email-capture-overlay').style.display = 'none';
+      var jobId = G._gateJobId;
+      finishLoadingBar(function() {
+        showPage('page-results');
+        switchSection('overview', document.querySelector('[data-section=overview]'));
+      });
+      incrementAnalysesUsed();
+      markDeepLoading();
+      startDeepStream(jobId);
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Verify & Unlock Report →';
+      errEl.textContent = 'Verification failed. Please try again.';
+      errEl.style.display = 'block';
+    });
+}
+
+function ecBackToStep1() {
+  document.getElementById('ec-step2').style.display = 'none';
+  document.getElementById('ec-step1').style.display = 'block';
+  document.getElementById('ec-otp-input').value = '';
+  document.getElementById('ec-error2').style.display = 'none';
 }
 
 function pollJob(jobId) {
