@@ -6,3 +6,4 @@ requests
 json-repair
 gunicorn
 stripe
+supabase
