@@ -1384,8 +1384,6 @@ function startAnalysis() {
     if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
     return;
   }
-  incrementAnalysesUsed();
-  var raw = document.getElementById('main-inp').value.replace(/^@/,'').trim();
   if (!raw) {
     document.getElementById('hero-input-wrap').classList.add('error');
     document.getElementById('inp-error').classList.remove('hide');
