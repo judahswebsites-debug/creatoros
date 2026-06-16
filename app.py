@@ -499,8 +499,12 @@ Sent every Monday at 8:00 AM | CreatorOS
 @app.route("/api/checkout", methods=["POST"])
 def checkout():
     try:
+        data = request.get_json(force=True, silent=True) or {}
+        plan = (data.get("plan") or "pro").strip().lower()
+        prices = {"pro": "price_1TijAFDpHO7O3OoqlamWVRRx", "max": "price_1TilXdDpHO7O30oqdSSpYw23"}
+        price_id = prices.get(plan, prices["pro"])
         session = stripe.checkout.Session.create(
-            line_items=[{"price": "price_1TilXdDpHO7O30oqdSSpYw23", "quantity": 1}],
+            line_items=[{"price": price_id, "quantity": 1}],
             mode="subscription",
             success_url="https://creatoros-ark3.onrender.com/?session_id={CHECKOUT_SESSION_ID}&upgraded=1",
             cancel_url="https://creatoros-ark3.onrender.com/",
