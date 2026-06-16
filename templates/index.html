@@ -1601,10 +1601,10 @@ function pollJob(jobId) {
           return;
         }
 
-        // First paint: render overview then show email gate before results
-        if ((s.status === 'deep_ready' || s.status === 'deep_ready' && !G._overviewShown && s.data) {
-          var _dk2=['content_pillars','viral_patterns','top_tactics','video_blueprints','trend_opportunities','follower_forecast','monetization'];
-          if(!_dk2.some(function(k){return s.data[k];})) return;
+        // Only reveal dashboard when deep analysis is fully present in job data
+        var _deepKeys = ['content_pillars','viral_patterns','top_tactics','video_blueprints','trend_opportunities','follower_forecast','monetization'];
+        var _hasDeep = s.data && _deepKeys.some(function(k){ return s.data[k]; });
+        if (s.status === 'deep_ready' && _hasDeep && !G._overviewShown) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;
