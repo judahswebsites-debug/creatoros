@@ -1,10 +1,12 @@
 import os
+import re
+import stripe
 import json
 import time
 import uuid
 import sqlite3
 import threading
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -12,9 +14,10 @@ load_dotenv()
 
 from demo_routes import demo_bp
 from scraper import scrape_profile
-from analyzer import analyze_profile, analyze_overview, analyze_deep, chat_with_context
+from analyzer import analyze_profile, analyze_overview, stream_deep_sections, chat_with_context
 
 app = Flask(__name__)
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 CORS(app)
 app.register_blueprint(demo_bp)
 
@@ -40,6 +43,10 @@ def _init_jobs_db():
         c.execute(
             "CREATE TABLE IF NOT EXISTS jobs "
             "(id TEXT PRIMARY KEY, status TEXT, data TEXT, error TEXT, updated REAL)"
+        )
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS emails "
+            "(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT, username TEXT, created REAL)"
         )
 
 
@@ -109,19 +116,10 @@ def _run_analysis_job(job_id, username, api_key, apify_token):
             _job_set(job_id, "error", error=overview.get("error", "Overview analysis failed"))
             return
         overview["profile"] = profile_dict
+        from analyzer import _profile_data as _pd
+        overview["_profile_data"] = _pd(profile)
         _job_set(job_id, "overview_ready", data=overview)
-
-        # Deep modules — runs in this thread, free of any request timeout.
-        deep = analyze_deep(profile, api_key, overview=overview)
-        merged = dict(overview)
-        if deep.get("ok"):
-            for k, v in deep.items():
-                if k != "ok":
-                    merged[k] = v
-        merged["profile"] = profile_dict
-        merged["deep_ok"] = bool(deep.get("ok"))
-        _analysis_cache[username.lower()] = merged
-        _job_set(job_id, "complete", data=merged)
+        # Deep analysis handled by SSE /api/analyze/stream-deep/<job_id>
     except Exception as e:
         _job_set(job_id, "error", error=str(e))
 
@@ -138,6 +136,30 @@ def health():
         "api_key_configured": bool(os.getenv("ANTHROPIC_API_KEY")),
         "apify_configured": bool(os.getenv("APIFY_API_TOKEN")),
     })
+
+
+@app.route("/api/debug-scrape")
+def debug_scrape():
+    import requests as _req
+    username = request.args.get("u", "sam_sulek")
+    api_key = os.getenv("BRIGHT_DATA_API_KEY", "")
+    base = "https://api.brightdata.com/datasets/v3/scrape"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    ig_url = f"https://www.instagram.com/{username}/"
+    results = {}
+    for ds_name, ds_id in [("profile", "gd_l1vikfch901nx3by4"), ("reels", "gd_lyclm20il4r5helnj")]:
+        try:
+            r = _req.post(f"{base}?dataset_id={ds_id}&format=json&include_errors=true",
+                         json=[{"url": ig_url}],
+                         headers=headers, timeout=60)
+            data = r.json()
+            if isinstance(data, list) and data:
+                results[ds_name] = {"count": len(data), "keys": list(data[0].keys()), "sample": data[0]}
+            else:
+                results[ds_name] = {"raw": data}
+        except Exception as e:
+            results[ds_name] = {"error": str(e)}
+    return jsonify(results)
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -208,6 +230,43 @@ def analyze_status(job_id):
         return jsonify({"ok": False, "error": "Job not found"}), 404
     return jsonify({"ok": True, **job})
 
+
+
+
+@app.route("/api/analyze/stream-deep/<job_id>")
+def stream_deep(job_id):
+    """SSE endpoint — streams deep analysis sections as Claude generates them."""
+    job = _job_get(job_id)
+    if not job or not job.get("data"):
+        return jsonify({"ok": False, "error": "Job not ready"}), 404
+    job_data = job["data"]
+    profile_data = job_data.get("_profile_data")
+    if not profile_data:
+        return jsonify({"ok": False, "error": "Profile data missing"}), 400
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    username = (job_data.get("profile") or {}).get("username", "").lower()
+
+    def generate():
+        merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
+        try:
+            for section_name, section_data in stream_deep_sections(profile_data, api_key, job_data):
+                merged[section_name] = section_data
+                payload = json.dumps({"type": "section", "key": section_name, "data": section_data})
+                yield f"data: {payload}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
+        merged["deep_ok"] = True
+        if username:
+            _analysis_cache[username] = merged
+        _job_set(job_id, "complete", data=merged)
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -435,6 +494,61 @@ View your full growth report at creatorOS.app
 ---
 Sent every Monday at 8:00 AM | CreatorOS
 """
+
+
+
+@app.route("/api/checkout", methods=["POST"])
+def checkout():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        plan = (data.get("plan") or "pro").strip().lower()
+        prices = {"pro": "price_1TikN9DpHO7O30oqhIbqb2kE", "max": "price_1TilXdDpHO7O30oqdSSpYw23"}
+        price_id = prices.get(plan, prices["pro"])
+        session = stripe.checkout.Session.create(
+            line_items=[{"price": price_id, "quantity": 1}],
+            mode="subscription",
+            success_url="https://creatoros-ark3.onrender.com/?session_id={CHECKOUT_SESSION_ID}&upgraded=1",
+            cancel_url="https://creatoros-ark3.onrender.com/",
+        )
+        return jsonify({"ok": True, "url": session.url})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/verify-session")
+def verify_session():
+    session_id = request.args.get("session_id", "").strip()
+    if not session_id:
+        return jsonify({"ok": False, "error": "session_id required"}), 400
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+        paid = sess.payment_status == "paid" or sess.status == "complete"
+        plan = "pro"
+        try:
+            li = stripe.checkout.Session.list_line_items(sess.id, limit=1)
+            if li and li.data:
+                price_id = li.data[0].price.id
+                if price_id == "price_1TilXdDpHO7O30oqdSSpYw23":
+                    plan = "max"
+        except Exception:
+            pass
+        return jsonify({"ok": True, "paid": paid, "plan": plan})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/capture-email", methods=["POST"])
+def capture_email():
+    data = request.get_json(force=True, silent=True) or {}
+    name = (data.get("name") or "").strip()[:200]
+    email = (data.get("email") or "").strip()[:200]
+    username = (data.get("username") or "").strip()[:200]
+    if not email:
+        return jsonify({"ok": False, "error": "email required"}), 400
+    with _db() as c:
+        c.execute(
+            "INSERT INTO emails(name, email, username, created) VALUES(?,?,?,?)",
+            (name, email, username, time.time()),
+        )
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
