@@ -68,6 +68,10 @@ def _init_jobs_db():
             "CREATE TABLE IF NOT EXISTS emails "
             "(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT, username TEXT, created REAL)"
         )
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS otp_codes "
+            "(email TEXT PRIMARY KEY, code TEXT, name TEXT, expires REAL)"
+        )
 
 
 _init_jobs_db()
