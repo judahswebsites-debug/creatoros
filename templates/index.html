@@ -1127,12 +1127,8 @@ footer .nav-logo{text-decoration:none;}
 
         <!-- Growth chart -->
         <div class="chart-card anim-4" id="chart-card">
-          <div class="chart-title">Engagement Trend</div>
-          <div class="chart-legend">
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#818cf8"></div>Engagement</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#2dd4bf"></div>Reach</div>
-          </div>
-          <svg id="trend-chart" width="100%" height="160" viewBox="0 0 600 160" preserveAspectRatio="none"></svg>
+          <div class="chart-title">Engagement Overview</div>
+          <div id="overview-engagement-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;"></div>
           <div class="chart-forecast" id="chart-forecast"></div>
         </div>
 
@@ -1198,13 +1194,9 @@ footer .nav-logo{text-decoration:none;}
       <!-- ANALYTICS -->
       <div id="section-analytics" class="dash-section">
         <h2 style="font-size:20px;font-weight:800;margin-bottom:16px;">Analytics</h2>
-        <div class="chart-card" style="margin-bottom:20px;">
-          <div class="chart-title">Engagement Trend</div>
-          <div class="chart-legend">
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#818cf8"></div>Engagement</div>
-            <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#2dd4bf"></div>Reach</div>
-          </div>
-          <svg id="analytics-chart" width="100%" height="200" viewBox="0 0 600 200" preserveAspectRatio="none"></svg>
+        <div class="chart-card" style="margin-bottom:20px;" id="engagement-trend-card">
+          <div class="chart-title">Engagement Overview</div>
+          <div id="engagement-stats-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px;"></div>
         </div>
         <div id="benchmark-strip-mount" style="margin-bottom:20px;"></div>
         <div id="aha-moment-mount" style="margin-bottom:20px;"></div>
@@ -1790,7 +1782,7 @@ function switchSection(name, clickedEl) {
       data: G.data,
       onCtaClick: function(rec) { alert('Applying: ' + rec.headline); }
     });
-    drawChart('analytics-chart', 200);
+    buildEngagementStats(G.data);
   }
 }
 
@@ -1948,7 +1940,29 @@ function buildDashboard(d) {
   }
 
   // Chart
-  requestAnimationFrame(function() { drawChart('trend-chart', 160); });
+  (function() {
+    var og = document.getElementById('overview-engagement-stats');
+    if (og && d) {
+      var analytics = d.analytics || {};
+      var profile = d.profile || {};
+      var trendMap = {growing: '📈 Growing', stable: '➡️ Stable', declining: '📉 Declining'};
+      var er = analytics.avg_engagement_rate || profile.avg_engagement_rate;
+      var erStr = er ? (String(er).includes('%') ? er : er + '%') : '—';
+      var stats = [
+        { label: 'Engagement Rate', val: erStr },
+        { label: 'Trend', val: trendMap[profile.engagement_trend] || profile.engagement_trend || '—' },
+        { label: 'Best Posting Day', val: (analytics.best_posting_days && analytics.best_posting_days[0]) || '—' },
+        { label: 'Top Format', val: analytics.top_format || '—' },
+      ];
+      og.innerHTML = '';
+      stats.forEach(function(s) {
+        og.innerHTML += '<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:14px 16px;">'
+          + '<div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:4px;">' + s.val + '</div>'
+          + '<div style="font-size:12px;color:#8888aa;">' + s.label + '</div>'
+          + '</div>';
+      });
+    }
+  })();
 
   // Deep modules (only render when present; skeletons show otherwise)
   if (d.content_pillars || d.viral_patterns || d.video_blueprints || d.monetization) {
@@ -2036,6 +2050,32 @@ function countUp(el, target, duration, prefix, suffix) {
     if (progress < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+}
+
+// ══════════════════════════════
+// ENGAGEMENT STATS
+// ══════════════════════════════
+function buildEngagementStats(d) {
+  var grid = document.getElementById('engagement-stats-grid');
+  if (!grid) return;
+  var analytics = (d && d.analytics) || {};
+  var profile = (d && d.profile) || {};
+  var trendMap = {growing: '📈 Growing', stable: '➡️ Stable', declining: '📉 Declining'};
+  var er = analytics.avg_engagement_rate || profile.avg_engagement_rate;
+  var erStr = er ? (String(er).includes('%') ? er : er + '%') : '—';
+  var stats = [
+    { label: 'Engagement Rate', val: erStr },
+    { label: 'Trend', val: trendMap[profile.engagement_trend] || profile.engagement_trend || '—' },
+    { label: 'Best Posting Day', val: (analytics.best_posting_days && analytics.best_posting_days[0]) || '—' },
+    { label: 'Top Format', val: analytics.top_format || '—' },
+  ];
+  grid.innerHTML = '';
+  stats.forEach(function(s) {
+    grid.innerHTML += '<div style="background:rgba(255,255,255,.04);border-radius:10px;padding:14px 16px;">'
+      + '<div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:4px;">' + s.val + '</div>'
+      + '<div style="font-size:12px;color:#8888aa;">' + s.label + '</div>'
+      + '</div>';
+  });
 }
 
 // ══════════════════════════════
