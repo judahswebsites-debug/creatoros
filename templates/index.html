@@ -1338,11 +1338,14 @@ function startAnalysis() {
   document.getElementById('inp-error').classList.add('hide');
 
   G.username = raw;
+  document.getElementById('loading-username').textContent = '@' + raw;
+  showPage('page-loading');
+  startLoadingAnimation();
+  G._overviewShown = false;
 
   var apiKeyInp = document.getElementById('api-key-inp');
   var apiKey = apiKeyInp ? apiKeyInp.value.trim() : '';
-  G._pendingJobId = null;
-  G._pendingJobError = null;
+
   fetch('/api/analyze/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1351,15 +1354,18 @@ function startAnalysis() {
   .then(function(r) { return r.json(); })
   .then(function(d) {
     if (!d.ok || !d.job_id) {
-      G._pendingJobError = d.error || 'Unknown error';
-    } else {
-      G._pendingJobId = d.job_id;
+      stopLoadingAnimation();
+      alert('Analysis failed: ' + (d.error || 'Unknown error'));
+      goToLanding();
+      return;
     }
+    pollJob(d.job_id);
   })
-  .catch(function() { G._pendingJobError = 'Network error'; });
-
-  document.getElementById('email-capture-overlay').style.display = 'flex';
-  setTimeout(function() { document.getElementById('email-capture-name').focus(); }, 100);
+  .catch(function() {
+    stopLoadingAnimation();
+    alert('Network error. Please try again.');
+    goToLanding();
+  });
 }
 
 function submitEmailCapture() {
@@ -1401,48 +1407,6 @@ function submitEmailCapture() {
     }
   }
   waitAndPoll();
-}
-
-function showEmailCaptureGate(data, jobId) {
-  G._pendingDashboardJobId = jobId;
-  document.getElementById('email-capture-overlay').style.display = 'flex';
-  setTimeout(function() { document.getElementById('email-capture-name').focus(); }, 100);
-}
-
-function submitEmailCapture() {
-  var name = document.getElementById('email-capture-name').value.trim();
-  var email = document.getElementById('email-capture-email').value.trim();
-  if (!email || !email.includes('@')) {
-    document.getElementById('email-capture-email').style.borderColor = 'var(--rd2)';
-    document.getElementById('email-capture-email').focus();
-    return;
-  }
-  var btn = document.getElementById('email-capture-btn');
-  btn.disabled = true;
-  btn.textContent = 'Loading your report…';
-  fetch('/api/capture-email', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: name, email: email, username: G.username }),
-  }).catch(function(){});
-  document.getElementById('email-capture-overlay').style.display = 'none';
-  btn.disabled = false;
-  btn.textContent = 'Get My Free Report →';
-  var jobId = G._pendingDashboardJobId;
-  finishLoadingBar(function() {
-    showPage('page-results');
-    switchSection('overview', document.querySelector('[data-section=overview]'));
-  });
-  var pro = isPro();
-  var used = getAnalysesUsed();
-  if (!pro && used >= 1) {
-    markDeepLoading();
-    setTimeout(function() { showPaywallOverlay(); }, 600);
-  } else {
-    incrementAnalysesUsed();
-    markDeepLoading();
-    startDeepStream(jobId);
-  }
 }
 
 // ══════════════════════════════
