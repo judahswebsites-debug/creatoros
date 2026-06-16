@@ -1948,7 +1948,7 @@ function buildDashboard(d) {
   }
 
   // Chart
-  drawChart('trend-chart', 160);
+  requestAnimationFrame(function() { drawChart('trend-chart', 160); });
 
   // Deep modules (only render when present; skeletons show otherwise)
   if (d.content_pillars || d.viral_patterns || d.video_blueprints || d.monetization) {
@@ -2246,7 +2246,7 @@ function buildMonetization(d) {
   fcCard.className = 'mono-card';
   fcCard.innerHTML = '<div class="mono-card-title">Follower Growth Forecast</div>'
     + '<div class="forecast-timeline">'
-    + '<div class="forecast-point"><div class="forecast-point-label">Now</div><div class="forecast-point-val fira">' + fmtNum(forecast.now || 0) + '</div></div>'
+    + '<div class="forecast-point"><div class="forecast-point-label">Now</div><div class="forecast-point-val fira">' + fmtNum(forecast.now || (d.profile && d.profile.followers) || 0) + '</div></div>'
     + '<div class="forecast-point"><div class="forecast-point-label">3 mo</div><div class="forecast-point-val fira">' + fmtNum(forecast.three_months || 0) + '</div></div>'
     + '<div class="forecast-point"><div class="forecast-point-label">6 mo</div><div class="forecast-point-val fira">' + fmtNum(forecast.six_months || 0) + '</div></div>'
     + '<div class="forecast-point"><div class="forecast-point-label">12 mo</div><div class="forecast-point-val fira">' + fmtNum(forecast.twelve_months || 0) + '</div></div>'

@@ -353,7 +353,7 @@ def stream_deep(job_id):
     api_key = os.getenv("ANTHROPIC_API_KEY")
     username = (job_data.get("profile") or {}).get("username", "").lower()
 
-    _deep_keys = {"content_pillars","viral_patterns","top_growth_tactics","content_ideas","trend_opportunities","monetization","competitor_intel","growth_agent"}
+    _deep_keys = {"content_pillars","viral_patterns","top_tactics","video_blueprints","trend_opportunities","follower_forecast","monetization"}
     job_has_deep = any(k in job_data for k in _deep_keys)
 
     deep_cached = None
