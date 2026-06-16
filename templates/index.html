@@ -1604,7 +1604,7 @@ function pollJob(jobId) {
         }
 
         // First paint: render overview then show email gate before results
-        if (s.status === 'overview_ready' && !G._overviewShown && s.data) {
+        if ((s.status === 'deep_ready' || s.status === 'overview_ready') && !G._overviewShown && s.data) {
           G._overviewShown = true;
           G.data = s.data;
           G.analysisData = s.data;

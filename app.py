@@ -308,10 +308,18 @@ def analyze_start():
             overview = cached["overview"]
             _job_set(job_id, "overview_ready", data=overview)
             age_hours = round((time.time() - cached["analyzed_at"]) / 3600, 1)
-            if not cached.get("deep"):
+            if cached.get("deep"):
+                _job_set(job_id, "deep_ready", data=overview)
+            else:
+                _job_set(job_id, "overview_ready", data=overview)
                 profile_data = overview.get("_profile_data")
                 if profile_data:
-                    threading.Thread(target=_prerun_deep, args=(username, profile_data, api_key, overview), daemon=True).start()
+                    def _run_cached_deep(jid, uname, pd, ak, ov):
+                        _prerun_deep(uname, pd, ak, ov)
+                        _job_set(jid, "deep_ready", data=ov)
+                    threading.Thread(target=_run_cached_deep, args=(job_id, username, profile_data, api_key, overview), daemon=True).start()
+                else:
+                    _job_set(job_id, "deep_ready", data=overview)
             return jsonify({"ok": True, "job_id": job_id, "cached": True, "cache_age_hours": age_hours})
 
     job_id = uuid.uuid4().hex
@@ -352,15 +360,6 @@ def stream_deep(job_id):
             deep_cached = c["deep"]
 
     def generate():
-        nonlocal deep_cached
-        if not deep_cached and username:
-            for _ in range(45):
-                time.sleep(2)
-                c = _cache_get(username)
-                if c and c.get("deep"):
-                    deep_cached = c["deep"]
-                    break
-                yield ": heartbeat\n\n"
         merged = {k: v for k, v in job_data.items() if not k.startswith("_")}
         if deep_cached:
             for section_name, section_data in deep_cached.items():
