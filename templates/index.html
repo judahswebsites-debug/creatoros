@@ -1357,6 +1357,15 @@ function goToLanding() {
 // ANALYSIS FLOW
 // ══════════════════════════════
 function startAnalysis() {
+  if (!canRunAnalysis()) {
+    var plan = getPlan();
+    var limit = plan === 'pro' ? 10 : 1;
+    var msg = plan === 'pro'
+      ? 'You have used all ' + limit + ' analyses this month. Upgrade to Max for unlimited analyses.'
+      : 'You have used your free scan. Upgrade to Pro or Max to run more analyses.';
+    if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
+    return;
+  }
   var raw = document.getElementById('main-inp').value.replace(/^@/,'').trim();
   if (!raw) {
     document.getElementById('hero-input-wrap').classList.add('error');
@@ -2123,6 +2132,15 @@ function chatKeydown(e) {
 }
 
 function sendChat() {
+  if (!canSendAgentMsg()) {
+    var plan = getPlan();
+    var msg = plan === 'pro'
+      ? 'You have used all 20 Growth Agent messages this month. Upgrade to Max for unlimited messages.'
+      : 'You have used your free Growth Agent messages. Upgrade to Pro or Max for more.';
+    if (confirm(msg + '\n\nUpgrade now?')) openPricingModal();
+    return;
+  }
+  incrementAgentMsgs();
   var inp = document.getElementById('chat-inp');
   var msg = inp.value.trim();
   if (!msg) return;
@@ -2229,9 +2247,49 @@ function fmtNum(n) {
 </script>
 
 <script>
-function isPro() { return localStorage.getItem('creatoros_pro') === '1'; }
-function getAnalysesUsed() { return parseInt(localStorage.getItem('creatoros_analyses_used') || '0', 10); }
-function incrementAnalysesUsed() { localStorage.setItem('creatoros_analyses_used', String(getAnalysesUsed() + 1)); }
+function getPlan() { return localStorage.getItem('creatoros_plan') || (localStorage.getItem('creatoros_pro')==='1' ? 'pro' : 'free'); }
+function isPro() { var p = getPlan(); return p === 'pro' || p === 'max'; }
+function isMax() { return getPlan() === 'max'; }
+
+function _monthKey() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function getAnalysesUsed() {
+  var mk = _monthKey();
+  if (localStorage.getItem('creatoros_analyses_month') !== mk) {
+    localStorage.setItem('creatoros_analyses_month', mk);
+    localStorage.setItem('creatoros_analyses_count', '0');
+  }
+  return parseInt(localStorage.getItem('creatoros_analyses_count') || '0', 10);
+}
+function incrementAnalysesUsed() {
+  var mk = _monthKey();
+  localStorage.setItem('creatoros_analyses_month', mk);
+  localStorage.setItem('creatoros_analyses_count', String(getAnalysesUsed() + 1));
+}
+function canRunAnalysis() {
+  var plan = getPlan();
+  if (plan === 'max') return true;
+  if (plan === 'pro') return getAnalysesUsed() < 10;
+  return getAnalysesUsed() < 1;
+}
+function getAgentMsgsUsed() {
+  var mk = _monthKey();
+  if (localStorage.getItem('creatoros_agent_month') !== mk) {
+    localStorage.setItem('creatoros_agent_month', mk);
+    localStorage.setItem('creatoros_agent_count', '0');
+  }
+  return parseInt(localStorage.getItem('creatoros_agent_count') || '0', 10);
+}
+function incrementAgentMsgs() {
+  var mk = _monthKey();
+  localStorage.setItem('creatoros_agent_month', mk);
+  localStorage.setItem('creatoros_agent_count', String(getAgentMsgsUsed() + 1));
+}
+function canSendAgentMsg() {
+  var plan = getPlan();
+  if (plan === 'max') return true;
+  if (plan === 'pro') return getAgentMsgsUsed() < 20;
+  return getAgentMsgsUsed() < 3;
+}
 function showPaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.remove('hide'); }
 function hidePaywallOverlay() { var c = document.getElementById('paywall-card'); if(c) c.classList.add('hide'); }
 function dismissPaywall() { hidePaywallOverlay(); }
@@ -2257,7 +2315,14 @@ function startCheckout() {
   if (p.get('upgraded') === '1' && p.get('session_id')) {
     fetch('/api/verify-session?session_id=' + encodeURIComponent(p.get('session_id')))
       .then(function(r) { return r.json(); })
-      .then(function(d) { if (d.ok && d.paid) { localStorage.setItem('creatoros_pro', '1'); alert('Welcome to CreatorOS Pro!'); } })
+      .then(function(d) {
+        if (d.ok && d.paid) {
+          localStorage.setItem('creatoros_pro', '1');
+          localStorage.setItem('creatoros_plan', d.plan || 'pro');
+          var msg = d.plan === 'max' ? 'Welcome to CreatorOS Max! You have unlimited access.' : 'Welcome to CreatorOS Pro!';
+          alert(msg);
+        }
+      })
       .finally(function() { window.history.replaceState({}, '', window.location.pathname); });
   }
 })();

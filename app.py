@@ -521,7 +521,16 @@ def verify_session():
     try:
         sess = stripe.checkout.Session.retrieve(session_id)
         paid = sess.payment_status == "paid" or sess.status == "complete"
-        return jsonify({"ok": True, "paid": paid})
+        plan = "pro"
+        try:
+            li = stripe.checkout.Session.list_line_items(sess.id, limit=1)
+            if li and li.data:
+                price_id = li.data[0].price.id
+                if price_id == "price_1TilXdDpHO7O30oqdSSpYw23":
+                    plan = "max"
+        except Exception:
+            pass
+        return jsonify({"ok": True, "paid": paid, "plan": plan})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
