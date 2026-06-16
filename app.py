@@ -172,8 +172,8 @@ def _prerun_deep(username, profile_data, api_key, overview_data):
         for section_name, section_data in stream_deep_sections(profile_data, api_key, overview_data):
             merged[section_name] = section_data
         merged["deep_ok"] = True
-    except Exception:
-        pass
+    except Exception as e:
+        merged["deep_error"] = str(e)
     clean = {k: v for k, v in merged.items() if not k.startswith("_")}
     try:
         _cache_set_deep(username.lower(), clean)
