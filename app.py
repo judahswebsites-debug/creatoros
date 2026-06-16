@@ -6,6 +6,7 @@ import time
 import uuid
 import sqlite3
 import threading
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -20,6 +21,25 @@ app = Flask(__name__)
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
 CORS(app)
 app.register_blueprint(demo_bp)
+
+_supabase_client = None
+def _get_supabase():
+    global _supabase_client
+    if _supabase_client is None:
+        url=__import__('os').getenv('SUPABASE_URL',''); key=__import__('os').getenv('SUPABASE_SECRET_KEY','')
+        if url and key:
+            try:
+                from supabase import create_client; _supabase_client=create_client(url,key)
+            except: pass
+    return _supabase_client
+def _get_current_user():
+    from flask import request
+    auth=request.headers.get('Authorization','')
+    if not auth.startswith('Bearer '): return None
+    sb=_get_supabase()
+    if not sb: return None
+    try: return sb.auth.get_user(auth[7:]).user
+    except: return None
 
 # In-memory store for chat context (keyed by username)
 _analysis_cache: dict = {}
@@ -210,6 +230,20 @@ def analyze_start():
     if not username:
         return jsonify({"ok": False, "error": "Username is required"}), 400
 
+    user=_get_current_user()
+    if user:
+        sb=_get_supabase()
+        if sb:
+            try:
+                from datetime import datetime
+                mk=datetime.now().strftime('%Y-%m')
+                p=(sb.table('profiles').select('plan,scans_this_month,scans_month_key').eq('id',user.id).single().execute().data or {})
+                plan=p.get('plan','free'); scans=p.get('scans_this_month',0) if p.get('scans_month_key')==mk else 0
+                if scans>={'free':1,'pro':10,'max':999999}.get(plan,1)-1+1:
+                    if scans>={'free':1,'pro':10,'max':999999}.get(plan,1):
+                        from flask import jsonify; return jsonify({'ok':False,'error':'limit_reached','plan':plan}),403
+                sb.table('profiles').update({'scans_this_month':scans+1,'scans_month_key':mk}).eq('id',user.id).execute()
+            except: pass
     api_key = data.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
     apify_token = os.getenv("APIFY_API_TOKEN")
 
@@ -531,6 +565,13 @@ def verify_session():
                     plan = "max"
         except Exception:
             pass
+        if paid:
+            u=_get_current_user()
+            if u:
+                try:
+                    sb=_get_supabase()
+                    if sb: sb.table('profiles').update({'plan':plan}).eq('id',u.id).execute()
+                except: pass
         return jsonify({"ok": True, "paid": paid, "plan": plan})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
