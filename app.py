@@ -241,7 +241,7 @@ def analyze_start():
                 plan=p.get('plan','free'); scans=p.get('scans_this_month',0) if p.get('scans_month_key')==mk else 0
                 if scans>={'free':1,'pro':10,'max':999999}.get(plan,1)-1+1:
                     if scans>={'free':1,'pro':10,'max':999999}.get(plan,1):
-                        from flask import jsonify; return jsonify({'ok':False,'error':'limit_reached','plan':plan}),403
+                        return jsonify({'ok':False,'error':'limit_reached','plan':plan}),403
                 sb.table('profiles').update({'scans_this_month':scans+1,'scans_month_key':mk}).eq('id',user.id).execute()
             except: pass
     api_key = data.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
